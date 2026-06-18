@@ -65,6 +65,7 @@ func (r Registration) Resources() []sdk.Resource {
 		CognitiveAccountConnectionApiKeyResource{},
 		CognitiveAccountConnectionCustomKeysResource{},
 		CognitiveAccountConnectionEntraIDResource{},
+		CognitiveAccountProjectConnectionAccountKeyResource{},
 		CognitiveAccountProjectResource{},
 		CognitiveAccountRaiPolicyResource{},
 		CognitiveDeploymentResource{},
