@@ -81,7 +81,9 @@ The following arguments are supported:
 
 * `storage_size_in_gb` - (Optional) The size of the data disk space for the MongoDB Cluster.
 
-* `storage_type` - (Optional) The storage type for the MongoDB Cluster. Possible values are `PremiumSSD` and `PremiumSSDv2`. Defaults to `PremiumSSD`. Changing this forces a new resource to be created.
+* `storage_type` - (Optional) The storage type for the MongoDB Cluster. Possible values are `PremiumSSD` and `PremiumSSDv2`. Defaults to `PremiumSSD`.
+
+~> **Note:** `storage_type` cannot be changed in place, since online migration between `PremiumSSD` and `PremiumSSDv2` is not supported. To upgrade the storage type, create a new cluster with `create_mode` set to `PointInTimeRestore` or `GeoReplica` and the desired `storage_type` and `storage_size_in_gb`. When `storage_type` is `PremiumSSDv2`, `high_availability_mode` must be `Disabled`, `customer_managed_key` cannot be set, and only one of `compute_tier`, `storage_size_in_gb` or `high_availability_mode` can be changed per update.
 
 * `version` - (Optional) The version for the MongoDB Cluster. Possibles values are `5.0`, `6.0`, `7.0` and `8.0`.
 
