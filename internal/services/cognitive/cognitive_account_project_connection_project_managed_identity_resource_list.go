@@ -15,23 +15,23 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
-type CognitiveAccountProjectConnectionEntraIDListResource struct{}
+type CognitiveAccountProjectConnectionProjectManagedIdentityListResource struct{}
 
-var _ sdk.FrameworkListWrappedResource = new(CognitiveAccountProjectConnectionEntraIDListResource)
+var _ sdk.FrameworkListWrappedResource = new(CognitiveAccountProjectConnectionProjectManagedIdentityListResource)
 
-func (CognitiveAccountProjectConnectionEntraIDListResource) ResourceFunc() *pluginsdk.Resource {
-	return sdk.WrappedResource(CognitiveAccountProjectConnectionEntraIDResource{})
+func (CognitiveAccountProjectConnectionProjectManagedIdentityListResource) ResourceFunc() *pluginsdk.Resource {
+	return sdk.WrappedResource(CognitiveAccountProjectConnectionProjectManagedIdentityResource{})
 }
 
-func (CognitiveAccountProjectConnectionEntraIDListResource) Metadata(_ context.Context, _ resource.MetadataRequest, response *resource.MetadataResponse) {
-	response.TypeName = CognitiveAccountProjectConnectionEntraIDResource{}.ResourceType()
+func (CognitiveAccountProjectConnectionProjectManagedIdentityListResource) Metadata(_ context.Context, _ resource.MetadataRequest, response *resource.MetadataResponse) {
+	response.TypeName = CognitiveAccountProjectConnectionProjectManagedIdentityResource{}.ResourceType()
 }
 
-func (CognitiveAccountProjectConnectionEntraIDListResource) ListResourceConfigSchema(_ context.Context, _ list.ListResourceSchemaRequest, response *list.ListResourceSchemaResponse) {
+func (CognitiveAccountProjectConnectionProjectManagedIdentityListResource) ListResourceConfigSchema(_ context.Context, _ list.ListResourceSchemaRequest, response *list.ListResourceSchemaResponse) {
 	response.Schema = cognitiveAccountProjectConnectionListResourceConfigSchema()
 }
 
-func (CognitiveAccountProjectConnectionEntraIDListResource) List(ctx context.Context, request list.ListRequest, stream *list.ListResultsStream, metadata sdk.ResourceMetadata) {
+func (CognitiveAccountProjectConnectionProjectManagedIdentityListResource) List(ctx context.Context, request list.ListRequest, stream *list.ListResultsStream, metadata sdk.ResourceMetadata) {
 	client := metadata.Client.Cognitive.ProjectConnectionResourceClient
 
 	var data cognitiveAccountProjectConnectionListModel
@@ -57,8 +57,7 @@ func (CognitiveAccountProjectConnectionEntraIDListResource) List(ctx context.Con
 		listCtx, cancel := context.WithDeadline(context.Background(), deadline)
 		defer cancel()
 
-		connProjectId := projectconnectionresource.NewProjectID(projectId.SubscriptionId, projectId.ResourceGroupName, projectId.AccountName, projectId.ProjectName)
-		connectionsResp, err := client.ProjectConnectionsListComplete(listCtx, connProjectId, projectconnectionresource.DefaultProjectConnectionsListOperationOptions())
+		connectionsResp, err := client.ProjectConnectionsListComplete(listCtx, *projectId, projectconnectionresource.DefaultProjectConnectionsListOperationOptions())
 		if err != nil {
 			result := request.NewListResult(listCtx)
 			sdk.SetErrorDiagnosticAndPushListResult(result, push, fmt.Sprintf("listing connections for project `%s`", projectId.ProjectName), err)
@@ -66,15 +65,11 @@ func (CognitiveAccountProjectConnectionEntraIDListResource) List(ctx context.Con
 		}
 
 		for _, connection := range connectionsResp.Items {
-			if connection.Properties == nil {
+			if !cognitiveAccountProjectConnectionHasExpectedAuthType(&connection, projectconnectionresource.ConnectionAuthTypeProjectManagedIdentity) {
 				continue
 			}
 
-			if !cognitiveAccountProjectConnectionHasExpectedAuthType(&connection, projectconnectionresource.ConnectionAuthTypeAAD) {
-				continue
-			}
-
-			connectionId, err := projectconnectionresource.ParseProjectConnectionID(pointer.From(connection.Id))
+			connectionId, err := projectconnectionresource.ParseProjectConnectionIDInsensitively(pointer.From(connection.Id))
 			if err != nil {
 				result := request.NewListResult(listCtx)
 				sdk.SetErrorDiagnosticAndPushListResult(result, push, "parsing Cognitive Account Project Connection ID", err)
@@ -84,7 +79,7 @@ func (CognitiveAccountProjectConnectionEntraIDListResource) List(ctx context.Con
 			result := request.NewListResult(listCtx)
 			result.DisplayName = pointer.From(connection.Name)
 
-			r := CognitiveAccountProjectConnectionEntraIDResource{}
+			r := CognitiveAccountProjectConnectionProjectManagedIdentityResource{}
 			meta := sdk.NewResourceMetaData(metadata.Client, r)
 			meta.SetID(connectionId)
 

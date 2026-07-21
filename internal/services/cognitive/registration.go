@@ -66,6 +66,7 @@ func (r Registration) Resources() []sdk.Resource {
 		CognitiveAccountConnectionCustomKeysResource{},
 		CognitiveAccountConnectionEntraIDResource{},
 		CognitiveAccountProjectConnectionEntraIDResource{},
+		CognitiveAccountProjectConnectionProjectManagedIdentityResource{},
 		CognitiveAccountProjectResource{},
 		CognitiveAccountRaiPolicyResource{},
 		CognitiveDeploymentResource{},
@@ -104,5 +105,6 @@ func (r Registration) ListResources() []sdk.FrameworkListWrappedResource {
 		CognitiveAccountConnectionEntraIDListResource{},
 		CognitiveAccountListResource{},
 		CognitiveAccountProjectConnectionEntraIDListResource{},
+		CognitiveAccountProjectConnectionProjectManagedIdentityListResource{},
 	}
 }
