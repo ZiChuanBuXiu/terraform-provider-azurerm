@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupvaultresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupvaultresources"
 	"github.com/hashicorp/go-azure-sdk/sdk/client/pollers"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
@@ -171,12 +171,12 @@ func resourceDataProtectionBackupVaultCreateUpdate(d *pluginsdk.ResourceData, me
 	parameters := backupvaultresources.BackupVaultResource{
 		Location: location.Normalize(d.Get("location").(string)),
 		Properties: backupvaultresources.BackupVault{
-			StorageSettings: []backupvaultresources.StorageSetting{
+			StorageSettings: pointer.To([]backupvaultresources.StorageSetting{
 				{
 					DatastoreType: pointer.ToEnum[backupvaultresources.StorageSettingStoreTypes](d.Get("datastore_type").(string)),
 					Type:          pointer.ToEnum[backupvaultresources.StorageSettingTypes](d.Get("redundancy").(string)),
 				},
-			},
+			}),
 			SecuritySettings: &backupvaultresources.SecuritySettings{
 				SoftDeleteSettings: &backupvaultresources.SoftDeleteSettings{
 					State: pointer.ToEnum[backupvaultresources.SoftDeleteState](d.Get("soft_delete").(string)),
@@ -249,9 +249,9 @@ func resourceDataProtectionBackupVaultRead(d *pluginsdk.ResourceData, meta inter
 		d.Set("location", location.NormalizeNilable(pointer.To(model.Location)))
 		props := model.Properties
 
-		if len(props.StorageSettings) > 0 {
-			d.Set("datastore_type", string(pointer.From(props.StorageSettings[0].DatastoreType)))
-			d.Set("redundancy", string(pointer.From(props.StorageSettings[0].Type)))
+		if storageSettings := pointer.From(props.StorageSettings); len(storageSettings) > 0 {
+			d.Set("datastore_type", string(pointer.From(storageSettings[0].DatastoreType)))
+			d.Set("redundancy", string(pointer.From(storageSettings[0].Type)))
 		}
 
 		immutability := backupvaultresources.ImmutabilityStateDisabled

@@ -57,6 +57,14 @@ func UnmarshalItemLevelRestoreCriteriaImplementation(input []byte) (ItemLevelRes
 		value = fmt.Sprintf("%v", v)
 	}
 
+	if strings.EqualFold(value, "GenericRestoreDatasourceCriteria") {
+		var out GenericRestoreDatasourceCriteria
+		if err := json.Unmarshal(input, &out); err != nil {
+			return nil, fmt.Errorf("unmarshaling into GenericRestoreDatasourceCriteria: %+v", err)
+		}
+		return out, nil
+	}
+
 	if strings.EqualFold(value, "ItemPathBasedRestoreCriteria") {
 		var out ItemPathBasedRestoreCriteria
 		if err := json.Unmarshal(input, &out); err != nil {

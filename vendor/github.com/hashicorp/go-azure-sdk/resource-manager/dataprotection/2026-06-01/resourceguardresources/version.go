@@ -1,12 +1,12 @@
-package resourceguards
+package resourceguardresources
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See NOTICE.txt in the project root for license information.
 
-const defaultApiVersion = "2025-07-01"
+const defaultApiVersion = "2026-06-01"
 
 func userAgent() string {
-	return "hashicorp/go-azure-sdk/resourceguards/2025-07-01"
+	return "hashicorp/go-azure-sdk/resourceguardresources/2026-06-01"
 }
 
 func AzureAPIVersion() string {

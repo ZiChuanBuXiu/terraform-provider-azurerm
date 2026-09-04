@@ -141,6 +141,82 @@ func parseBCDRSecurityLevel(input string) (*BCDRSecurityLevel, error) {
 	return &out, nil
 }
 
+type BlobBackupPatternType string
+
+const (
+	BlobBackupPatternTypePrefix BlobBackupPatternType = "Prefix"
+)
+
+func PossibleValuesForBlobBackupPatternType() []string {
+	return []string{
+		string(BlobBackupPatternTypePrefix),
+	}
+}
+
+func (s *BlobBackupPatternType) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseBlobBackupPatternType(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseBlobBackupPatternType(input string) (*BlobBackupPatternType, error) {
+	vals := map[string]BlobBackupPatternType{
+		"prefix": BlobBackupPatternTypePrefix,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := BlobBackupPatternType(input)
+	return &out, nil
+}
+
+type BlobBackupRuleMode string
+
+const (
+	BlobBackupRuleModeExclude BlobBackupRuleMode = "Exclude"
+)
+
+func PossibleValuesForBlobBackupRuleMode() []string {
+	return []string{
+		string(BlobBackupRuleModeExclude),
+	}
+}
+
+func (s *BlobBackupRuleMode) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseBlobBackupRuleMode(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseBlobBackupRuleMode(input string) (*BlobBackupRuleMode, error) {
+	vals := map[string]BlobBackupRuleMode{
+		"exclude": BlobBackupRuleModeExclude,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := BlobBackupRuleMode(input)
+	return &out, nil
+}
+
 type CrossRegionRestoreState string
 
 const (
@@ -382,6 +458,50 @@ func parseEncryptionState(input string) (*EncryptionState, error) {
 
 	// otherwise presume it's an undefined value and best-effort it
 	out := EncryptionState(input)
+	return &out, nil
+}
+
+type GranularityLevel string
+
+const (
+	GranularityLevelProtectedItemLevel         GranularityLevel = "ProtectedItemLevel"
+	GranularityLevelProtectedItemWithParentTag GranularityLevel = "ProtectedItemWithParentTag"
+	GranularityLevelVaultLevel                 GranularityLevel = "VaultLevel"
+)
+
+func PossibleValuesForGranularityLevel() []string {
+	return []string{
+		string(GranularityLevelProtectedItemLevel),
+		string(GranularityLevelProtectedItemWithParentTag),
+		string(GranularityLevelVaultLevel),
+	}
+}
+
+func (s *GranularityLevel) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseGranularityLevel(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseGranularityLevel(input string) (*GranularityLevel, error) {
+	vals := map[string]GranularityLevel{
+		"protecteditemlevel":         GranularityLevelProtectedItemLevel,
+		"protecteditemwithparenttag": GranularityLevelProtectedItemWithParentTag,
+		"vaultlevel":                 GranularityLevelVaultLevel,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := GranularityLevel(input)
 	return &out, nil
 }
 
