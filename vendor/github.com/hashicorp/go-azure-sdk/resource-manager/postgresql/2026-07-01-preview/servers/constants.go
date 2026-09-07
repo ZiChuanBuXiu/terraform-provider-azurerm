@@ -488,6 +488,47 @@ func parseFeatureStatus(input string) (*FeatureStatus, error) {
 	return &out, nil
 }
 
+type FipsMode string
+
+const (
+	FipsModeDisabled FipsMode = "Disabled"
+	FipsModeEnabled  FipsMode = "Enabled"
+)
+
+func PossibleValuesForFipsMode() []string {
+	return []string{
+		string(FipsModeDisabled),
+		string(FipsModeEnabled),
+	}
+}
+
+func (s *FipsMode) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseFipsMode(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseFipsMode(input string) (*FipsMode, error) {
+	vals := map[string]FipsMode{
+		"disabled": FipsModeDisabled,
+		"enabled":  FipsModeEnabled,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := FipsMode(input)
+	return &out, nil
+}
+
 type GeographicallyRedundantBackup string
 
 const (
@@ -670,6 +711,47 @@ func parseHighAvailabilityState(input string) (*HighAvailabilityState, error) {
 	return &out, nil
 }
 
+type ImmutableBackup string
+
+const (
+	ImmutableBackupDisabled ImmutableBackup = "Disabled"
+	ImmutableBackupEnabled  ImmutableBackup = "Enabled"
+)
+
+func PossibleValuesForImmutableBackup() []string {
+	return []string{
+		string(ImmutableBackupDisabled),
+		string(ImmutableBackupEnabled),
+	}
+}
+
+func (s *ImmutableBackup) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseImmutableBackup(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseImmutableBackup(input string) (*ImmutableBackup, error) {
+	vals := map[string]ImmutableBackup{
+		"disabled": ImmutableBackupDisabled,
+		"enabled":  ImmutableBackupEnabled,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := ImmutableBackup(input)
+	return &out, nil
+}
+
 type LocationRestricted string
 
 const (
@@ -708,6 +790,53 @@ func parseLocationRestricted(input string) (*LocationRestricted, error) {
 
 	// otherwise presume it's an undefined value and best-effort it
 	out := LocationRestricted(input)
+	return &out, nil
+}
+
+type MajorVersionUpgradePrecheckStatus string
+
+const (
+	MajorVersionUpgradePrecheckStatusCanceled   MajorVersionUpgradePrecheckStatus = "Canceled"
+	MajorVersionUpgradePrecheckStatusFailed     MajorVersionUpgradePrecheckStatus = "Failed"
+	MajorVersionUpgradePrecheckStatusSucceeded  MajorVersionUpgradePrecheckStatus = "Succeeded"
+	MajorVersionUpgradePrecheckStatusValidating MajorVersionUpgradePrecheckStatus = "Validating"
+)
+
+func PossibleValuesForMajorVersionUpgradePrecheckStatus() []string {
+	return []string{
+		string(MajorVersionUpgradePrecheckStatusCanceled),
+		string(MajorVersionUpgradePrecheckStatusFailed),
+		string(MajorVersionUpgradePrecheckStatusSucceeded),
+		string(MajorVersionUpgradePrecheckStatusValidating),
+	}
+}
+
+func (s *MajorVersionUpgradePrecheckStatus) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseMajorVersionUpgradePrecheckStatus(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseMajorVersionUpgradePrecheckStatus(input string) (*MajorVersionUpgradePrecheckStatus, error) {
+	vals := map[string]MajorVersionUpgradePrecheckStatus{
+		"canceled":   MajorVersionUpgradePrecheckStatusCanceled,
+		"failed":     MajorVersionUpgradePrecheckStatusFailed,
+		"succeeded":  MajorVersionUpgradePrecheckStatusSucceeded,
+		"validating": MajorVersionUpgradePrecheckStatusValidating,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := MajorVersionUpgradePrecheckStatus(input)
 	return &out, nil
 }
 
@@ -790,6 +919,59 @@ func parseMigrationNameAvailabilityReason(input string) (*MigrationNameAvailabil
 
 	// otherwise presume it's an undefined value and best-effort it
 	out := MigrationNameAvailabilityReason(input)
+	return &out, nil
+}
+
+type NetworkMigrationState string
+
+const (
+	NetworkMigrationStateCancelInProgress NetworkMigrationState = "CancelInProgress"
+	NetworkMigrationStateCancelled        NetworkMigrationState = "Cancelled"
+	NetworkMigrationStateFailed           NetworkMigrationState = "Failed"
+	NetworkMigrationStateInProgress       NetworkMigrationState = "InProgress"
+	NetworkMigrationStatePending          NetworkMigrationState = "Pending"
+	NetworkMigrationStateSucceeded        NetworkMigrationState = "Succeeded"
+)
+
+func PossibleValuesForNetworkMigrationState() []string {
+	return []string{
+		string(NetworkMigrationStateCancelInProgress),
+		string(NetworkMigrationStateCancelled),
+		string(NetworkMigrationStateFailed),
+		string(NetworkMigrationStateInProgress),
+		string(NetworkMigrationStatePending),
+		string(NetworkMigrationStateSucceeded),
+	}
+}
+
+func (s *NetworkMigrationState) UnmarshalJSON(bytes []byte) error {
+	var decoded string
+	if err := json.Unmarshal(bytes, &decoded); err != nil {
+		return fmt.Errorf("unmarshaling: %+v", err)
+	}
+	out, err := parseNetworkMigrationState(decoded)
+	if err != nil {
+		return fmt.Errorf("parsing %q: %+v", decoded, err)
+	}
+	*s = *out
+	return nil
+}
+
+func parseNetworkMigrationState(input string) (*NetworkMigrationState, error) {
+	vals := map[string]NetworkMigrationState{
+		"cancelinprogress": NetworkMigrationStateCancelInProgress,
+		"cancelled":        NetworkMigrationStateCancelled,
+		"failed":           NetworkMigrationStateFailed,
+		"inprogress":       NetworkMigrationStateInProgress,
+		"pending":          NetworkMigrationStatePending,
+		"succeeded":        NetworkMigrationStateSucceeded,
+	}
+	if v, ok := vals[strings.ToLower(input)]; ok {
+		return &v, nil
+	}
+
+	// otherwise presume it's an undefined value and best-effort it
+	out := NetworkMigrationState(input)
 	return &out, nil
 }
 
@@ -925,6 +1107,7 @@ const (
 	PostgresMajorVersionOneEight PostgresMajorVersion = "18"
 	PostgresMajorVersionOneFive  PostgresMajorVersion = "15"
 	PostgresMajorVersionOneFour  PostgresMajorVersion = "14"
+	PostgresMajorVersionOneNine  PostgresMajorVersion = "19"
 	PostgresMajorVersionOneOne   PostgresMajorVersion = "11"
 	PostgresMajorVersionOneSeven PostgresMajorVersion = "17"
 	PostgresMajorVersionOneSix   PostgresMajorVersion = "16"
@@ -937,6 +1120,7 @@ func PossibleValuesForPostgresMajorVersion() []string {
 		string(PostgresMajorVersionOneEight),
 		string(PostgresMajorVersionOneFive),
 		string(PostgresMajorVersionOneFour),
+		string(PostgresMajorVersionOneNine),
 		string(PostgresMajorVersionOneOne),
 		string(PostgresMajorVersionOneSeven),
 		string(PostgresMajorVersionOneSix),
@@ -963,6 +1147,7 @@ func parsePostgresMajorVersion(input string) (*PostgresMajorVersion, error) {
 		"18": PostgresMajorVersionOneEight,
 		"15": PostgresMajorVersionOneFive,
 		"14": PostgresMajorVersionOneFour,
+		"19": PostgresMajorVersionOneNine,
 		"11": PostgresMajorVersionOneOne,
 		"17": PostgresMajorVersionOneSeven,
 		"16": PostgresMajorVersionOneSix,

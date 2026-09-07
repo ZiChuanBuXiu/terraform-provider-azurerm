@@ -1,12 +1,12 @@
-package firewallrules
+package administratormicrosoftentras
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See NOTICE.txt in the project root for license information.
 
-const defaultApiVersion = "2025-08-01"
+const defaultApiVersion = "2026-07-01-preview"
 
 func userAgent() string {
-	return "hashicorp/go-azure-sdk/firewallrules/2025-08-01"
+	return "hashicorp/go-azure-sdk/administratormicrosoftentras/2026-07-01-preview"
 }
 
 func AzureAPIVersion() string {

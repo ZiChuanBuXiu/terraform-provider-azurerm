@@ -12,11 +12,13 @@ type ServerPropertiesForPatch struct {
 	Cluster                    *Cluster                   `json:"cluster,omitempty"`
 	CreateMode                 *CreateModeForPatch        `json:"createMode,omitempty"`
 	DataEncryption             *DataEncryption            `json:"dataEncryption,omitempty"`
+	FipsMode                   *FipsMode                  `json:"fipsMode,omitempty"`
 	HighAvailability           *HighAvailabilityForPatch  `json:"highAvailability,omitempty"`
 	MaintenanceWindow          *MaintenanceWindowForPatch `json:"maintenanceWindow,omitempty"`
 	Network                    *Network                   `json:"network,omitempty"`
 	Replica                    *Replica                   `json:"replica,omitempty"`
 	ReplicationRole            *ReplicationRole           `json:"replicationRole,omitempty"`
+	SourceServerResourceId     *string                    `json:"sourceServerResourceId,omitempty"`
 	Storage                    *Storage                   `json:"storage,omitempty"`
 	Version                    *PostgresMajorVersion      `json:"version,omitempty"`
 }

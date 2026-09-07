@@ -1,14 +1,14 @@
 
-## `github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/virtualendpoints` Documentation
+## `github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/virtualendpoints` Documentation
 
-The `virtualendpoints` SDK allows for interaction with Azure Resource Manager `postgresql` (API Version `2025-08-01`).
+The `virtualendpoints` SDK allows for interaction with Azure Resource Manager `postgresql` (API Version `2026-07-01-preview`).
 
 This readme covers example usages, but further information on [using this SDK can be found in the project root](https://github.com/hashicorp/go-azure-sdk/tree/main/docs).
 
 ### Import Path
 
 ```go
-import "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/virtualendpoints"
+import "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/virtualendpoints"
 ```
 
 

@@ -18,6 +18,7 @@ type ServerProperties struct {
 	Cluster                    *Cluster                     `json:"cluster,omitempty"`
 	CreateMode                 *CreateMode                  `json:"createMode,omitempty"`
 	DataEncryption             *DataEncryption              `json:"dataEncryption,omitempty"`
+	FipsMode                   *FipsMode                    `json:"fipsMode,omitempty"`
 	FullyQualifiedDomainName   *string                      `json:"fullyQualifiedDomainName,omitempty"`
 	HighAvailability           *HighAvailability            `json:"highAvailability,omitempty"`
 	MaintenanceWindow          *MaintenanceWindow           `json:"maintenanceWindow,omitempty"`

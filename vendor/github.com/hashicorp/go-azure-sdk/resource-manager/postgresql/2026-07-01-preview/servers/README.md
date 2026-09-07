@@ -1,7 +1,7 @@
 
-## `github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/servers` Documentation
+## `github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/servers` Documentation
 
-The `servers` SDK allows for interaction with Azure Resource Manager `postgresql` (API Version `2025-08-01`).
+The `servers` SDK allows for interaction with Azure Resource Manager `postgresql` (API Version `2026-07-01-preview`).
 
 This readme covers example usages, but further information on [using this SDK can be found in the project root](https://github.com/hashicorp/go-azure-sdk/tree/main/docs).
 
@@ -9,7 +9,7 @@ This readme covers example usages, but further information on [using this SDK ca
 
 ```go
 import "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
-import "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/servers"
+import "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/servers"
 ```
 
 
@@ -172,6 +172,18 @@ for _, item := range items {
 ```
 
 
+### Example Usage: `ServersClient.MigrateNetworkMode`
+
+```go
+ctx := context.TODO()
+id := servers.NewFlexibleServerID("12345678-1234-9876-4563-123456789012", "example-resource-group", "flexibleServerName")
+
+if err := client.MigrateNetworkModeThenPoll(ctx, id); err != nil {
+	// handle the error
+}
+```
+
+
 ### Example Usage: `ServersClient.MigrationsCheckNameAvailability`
 
 ```go
@@ -234,6 +246,23 @@ ctx := context.TODO()
 id := servers.NewFlexibleServerID("12345678-1234-9876-4563-123456789012", "example-resource-group", "flexibleServerName")
 
 if err := client.StartThenPoll(ctx, id); err != nil {
+	// handle the error
+}
+```
+
+
+### Example Usage: `ServersClient.StartMajorVersionUpgradePrecheck`
+
+```go
+ctx := context.TODO()
+id := servers.NewFlexibleServerID("12345678-1234-9876-4563-123456789012", "example-resource-group", "flexibleServerName")
+
+payload := servers.StartMajorVersionUpgradePrecheckRequest{
+	// ...
+}
+
+
+if err := client.StartMajorVersionUpgradePrecheckThenPoll(ctx, id, payload); err != nil {
 	// handle the error
 }
 ```

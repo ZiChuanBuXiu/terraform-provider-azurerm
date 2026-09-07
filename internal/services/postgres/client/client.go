@@ -6,13 +6,13 @@ package client
 import (
 	"fmt"
 
-	flexibleserveradministrators "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/administratormicrosoftentras"
-	backupsautomaticandondemand "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/backupautomaticandondemands"
-	flexibleserverconfigurations "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/configurations"
-	flexibleserverdatabases "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/databases"
-	flexibleserverfirewallrules "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/firewallrules"
-	flexibleservers "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/servers"
-	flexibleservervirtualendpoints "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/virtualendpoints"
+	flexibleserveradministrators "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/administratormicrosoftentras"
+	backupsautomaticandondemand "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/backupautomaticandondemands"
+	flexibleserverconfigurations "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/configurations"
+	flexibleserverdatabases "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/databases"
+	flexibleserverfirewallrules "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/firewallrules"
+	flexibleservers "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/servers"
+	flexibleservervirtualendpoints "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-07-01-preview/virtualendpoints"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/common"
 )
 

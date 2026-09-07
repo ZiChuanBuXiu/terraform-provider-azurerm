@@ -9,20 +9,21 @@ import (
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See NOTICE.txt in the project root for license information.
 
-type BackupForPatch struct {
+type Backup struct {
 	BackupRetentionDays *int64                         `json:"backupRetentionDays,omitempty"`
 	EarliestRestoreDate *string                        `json:"earliestRestoreDate,omitempty"`
 	GeoRedundantBackup  *GeographicallyRedundantBackup `json:"geoRedundantBackup,omitempty"`
+	ImmutableBackup     *ImmutableBackup               `json:"immutableBackup,omitempty"`
 }
 
-func (o *BackupForPatch) GetEarliestRestoreDateAsTime() (*time.Time, error) {
+func (o *Backup) GetEarliestRestoreDateAsTime() (*time.Time, error) {
 	if o.EarliestRestoreDate == nil {
 		return nil, nil
 	}
 	return dates.ParseAsFormat(o.EarliestRestoreDate, "2006-01-02T15:04:05Z07:00")
 }
 
-func (o *BackupForPatch) SetEarliestRestoreDateAsTime(input time.Time) {
+func (o *Backup) SetEarliestRestoreDateAsTime(input time.Time) {
 	formatted := input.Format("2006-01-02T15:04:05Z07:00")
 	o.EarliestRestoreDate = &formatted
 }
