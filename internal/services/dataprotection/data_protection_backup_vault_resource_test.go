@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupvaultresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupvaultresources"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -171,7 +171,7 @@ func (r DataProtectionBackupVaultResource) Exists(ctx context.Context, client *c
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.DataProtection.BackupVaultClient.BackupVaultsGet(ctx, *id)
+	resp, err := client.DataProtection.BackupVaultClient_v2025_07_01.BackupVaultsGet(ctx, *id)
 	if err != nil {
 		if response.WasNotFound(resp.HttpResponse) {
 			return pointer.To(false), nil

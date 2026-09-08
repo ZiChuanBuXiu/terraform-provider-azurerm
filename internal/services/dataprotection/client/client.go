@@ -6,6 +6,7 @@ package client
 import (
 	"fmt"
 
+	backupvaultresources20250701 "github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupvaultresources"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupinstanceresources"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupvaultresources"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/basebackuppolicyresources"
@@ -14,10 +15,11 @@ import (
 )
 
 type Client struct {
-	BackupVaultClient    *backupvaultresources.BackupVaultResourcesClient
-	BackupPolicyClient   *basebackuppolicyresources.BaseBackupPolicyResourcesClient
-	BackupInstanceClient *backupinstanceresources.BackupInstanceResourcesClient
-	ResourceGuardClient  *resourceguardresources.ResourceGuardResourcesClient
+	BackupVaultClient             *backupvaultresources.BackupVaultResourcesClient
+	BackupVaultClient_v2025_07_01 *backupvaultresources20250701.BackupVaultResourcesClient
+	BackupPolicyClient            *basebackuppolicyresources.BaseBackupPolicyResourcesClient
+	BackupInstanceClient          *backupinstanceresources.BackupInstanceResourcesClient
+	ResourceGuardClient           *resourceguardresources.ResourceGuardResourcesClient
 }
 
 func NewClient(o *common.ClientOptions) (*Client, error) {
@@ -26,6 +28,12 @@ func NewClient(o *common.ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf("building BackupVaultResources client: %+v", err)
 	}
 	o.Configure(backupVaultClient.Client, o.Authorizers.ResourceManager)
+
+	backupVaultClient_v2025_07_01, err := backupvaultresources20250701.NewBackupVaultResourcesClientWithBaseURI(o.Environment.ResourceManager)
+	if err != nil {
+		return nil, fmt.Errorf("building BackupVaultResources client: %+v", err)
+	}
+	o.Configure(backupVaultClient_v2025_07_01.Client, o.Authorizers.ResourceManager)
 
 	backupPolicyClient, err := basebackuppolicyresources.NewBaseBackupPolicyResourcesClientWithBaseURI(o.Environment.ResourceManager)
 	if err != nil {
@@ -46,9 +54,10 @@ func NewClient(o *common.ClientOptions) (*Client, error) {
 	o.Configure(resourceGuardClient.Client, o.Authorizers.ResourceManager)
 
 	return &Client{
-		BackupVaultClient:    backupVaultClient,
-		BackupPolicyClient:   backupPolicyClient,
-		BackupInstanceClient: backupInstanceClient,
-		ResourceGuardClient:  resourceGuardClient,
+		BackupVaultClient:             backupVaultClient,
+		BackupVaultClient_v2025_07_01: backupVaultClient_v2025_07_01,
+		BackupPolicyClient:            backupPolicyClient,
+		BackupInstanceClient:          backupInstanceClient,
+		ResourceGuardClient:           resourceGuardClient,
 	}, nil
 }
