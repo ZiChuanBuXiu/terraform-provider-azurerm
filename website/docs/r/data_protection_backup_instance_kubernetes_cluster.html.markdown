@@ -213,6 +213,8 @@ The following arguments are supported:
 
 * `backup_datasource_parameters` - (Optional) A `backup_datasource_parameters` block as defined below. Changing this forces a new resource to be created.
 
+* `use_system_assigned_identity` - (Optional) Whether to use the system-assigned identity for the Backup Instance; defaults to `false`. Changing this forces a new resource to be created.
+
 ---
 
 A `backup_datasource_parameters` block supports the following:
@@ -259,4 +261,4 @@ terraform import azurerm_data_protection_backup_instance_kubernetes_cluster.exam
 <!-- This section is generated, changes will be overwritten -->
 This resource uses the following Azure API Providers:
 
-* `Microsoft.DataProtection` - 2025-07-01
+* `Microsoft.DataProtection` - 2026-06-01

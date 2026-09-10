@@ -14,9 +14,9 @@ import (
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupinstanceresources"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupvaultresources"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/basebackuppolicyresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupinstanceresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupvaultresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/basebackuppolicyresources"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
@@ -32,6 +32,7 @@ type BackupInstanceKubernatesClusterModel struct {
 	KubernetesClusterId        string                       `tfschema:"kubernetes_cluster_id"`
 	SnapshotResourceGroupName  string                       `tfschema:"snapshot_resource_group_name"`
 	BackupDatasourceParameters []BackupDatasourceParameters `tfschema:"backup_datasource_parameters"`
+	UseSystemAssignedIdentity  bool                         `tfschema:"use_system_assigned_identity"`
 	ProtectionState            string                       `tfschema:"protection_state"`
 }
 
@@ -163,6 +164,13 @@ func (r DataProtectionBackupInstanceKubernatesClusterResource) Arguments() map[s
 				},
 			},
 		},
+
+		"use_system_assigned_identity": {
+			Type:     pluginsdk.TypeBool,
+			Optional: true,
+			Default:  false,
+			ForceNew: true,
+		},
 	}
 }
 
@@ -184,7 +192,7 @@ func (r DataProtectionBackupInstanceKubernatesClusterResource) Create() sdk.Reso
 				return fmt.Errorf("decoding: %+v", err)
 			}
 
-			client := metadata.Client.DataProtection.BackupInstanceClient
+			client := metadata.Client.DataProtection.BackupInstanceClient20260601
 
 			vaultId, err := backupvaultresources.ParseBackupVaultID(model.VaultId)
 			if err != nil {
@@ -253,6 +261,11 @@ func (r DataProtectionBackupInstanceKubernatesClusterResource) Create() sdk.Reso
 					},
 				},
 			}
+			if model.UseSystemAssignedIdentity {
+				parameters.Properties.IdentityDetails = &backupinstanceresources.IdentityDetails{
+					UseSystemAssignedIdentity: pointer.To(true),
+				}
+			}
 
 			if err := client.BackupInstancesCreateOrUpdateCallbackThenPoll(ctx, id, parameters, backupinstanceresources.DefaultBackupInstancesCreateOrUpdateOperationOptions(), metadata.SetIDAndIdentityCallback(&id)); err != nil {
 				return fmt.Errorf("creating %s: %+v", id, err)
@@ -271,7 +284,7 @@ func (r DataProtectionBackupInstanceKubernatesClusterResource) Read() sdk.Resour
 	return sdk.ResourceFunc{
 		Timeout: 5 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.DataProtection.BackupInstanceClient
+			client := metadata.Client.DataProtection.BackupInstanceClient20260601
 
 			id, err := backupinstanceresources.ParseBackupInstanceID(metadata.ResourceData.Id())
 			if err != nil {
@@ -287,54 +300,68 @@ func (r DataProtectionBackupInstanceKubernatesClusterResource) Read() sdk.Resour
 				return fmt.Errorf("retrieving %s: %+v", *id, err)
 			}
 
-			vaultId := backupvaultresources.NewBackupVaultID(id.SubscriptionId, id.ResourceGroupName, id.BackupVaultName)
+			return r.flatten(metadata, id, resp.Model)
+		},
+	}
+}
 
-			state := BackupInstanceKubernatesClusterModel{
-				Name:    id.BackupInstanceName,
-				VaultId: vaultId.ID(),
-			}
+func (r DataProtectionBackupInstanceKubernatesClusterResource) flatten(metadata sdk.ResourceMetaData, id *backupinstanceresources.BackupInstanceId, model *backupinstanceresources.BackupInstanceResource) error {
+	state := BackupInstanceKubernatesClusterModel{
+		Name:    id.BackupInstanceName,
+		VaultId: backupvaultresources.NewBackupVaultID(id.SubscriptionId, id.ResourceGroupName, id.BackupVaultName).ID(),
+	}
 
-			if model := resp.Model; model != nil {
-				if properties := model.Properties; properties != nil {
-					state.Location = location.NormalizeNilable(properties.DataSourceInfo.ResourceLocation)
-					state.BackupPolicyId = properties.PolicyInfo.PolicyId
-					state.KubernetesClusterId = properties.DataSourceInfo.ResourceID
-					state.ProtectionState = pointer.FromEnum(properties.CurrentProtectionState)
+	if model != nil && model.Properties != nil {
+		properties := model.Properties
+		state.Location = location.NormalizeNilable(properties.DataSourceInfo.ResourceLocation)
 
-					if policyParameters := properties.PolicyInfo.PolicyParameters; policyParameters != nil {
-						if dataStorePara := policyParameters.DataStoreParametersList; dataStorePara != nil {
-							if dsp := pointer.From(dataStorePara); len(dsp) > 0 {
-								if parameter, ok := dsp[0].(backupinstanceresources.AzureOperationalStoreParameters); ok && parameter.ResourceGroupId != nil {
-									resourceGroupId, err := commonids.ParseResourceGroupIDInsensitively(*parameter.ResourceGroupId)
-									if err != nil {
-										return err
-									}
-									state.SnapshotResourceGroupName = resourceGroupId.ResourceGroupName
-								}
-							}
+		policyId, err := basebackuppolicyresources.ParseBackupPolicyIDInsensitively(properties.PolicyInfo.PolicyId)
+		if err != nil {
+			return err
+		}
+		state.BackupPolicyId = policyId.ID()
+
+		clusterId, err := commonids.ParseKubernetesClusterIDInsensitively(properties.DataSourceInfo.ResourceID)
+		if err != nil {
+			return err
+		}
+		state.KubernetesClusterId = clusterId.ID()
+		state.ProtectionState = pointer.FromEnum(properties.CurrentProtectionState)
+		if properties.IdentityDetails != nil {
+			state.UseSystemAssignedIdentity = pointer.From(properties.IdentityDetails.UseSystemAssignedIdentity)
+		}
+
+		if policyParameters := properties.PolicyInfo.PolicyParameters; policyParameters != nil {
+			if dataStorePara := policyParameters.DataStoreParametersList; dataStorePara != nil {
+				if dsp := pointer.From(dataStorePara); len(dsp) > 0 {
+					if parameter, ok := dsp[0].(backupinstanceresources.AzureOperationalStoreParameters); ok && parameter.ResourceGroupId != nil {
+						resourceGroupId, err := commonids.ParseResourceGroupIDInsensitively(*parameter.ResourceGroupId)
+						if err != nil {
+							return err
 						}
-						if backupDsp := policyParameters.BackupDatasourceParametersList; backupDsp != nil {
-							if v := flattenBackupDatasourceParameters(*backupDsp); v != nil {
-								state.BackupDatasourceParameters = pointer.From(v)
-							}
-						}
+						state.SnapshotResourceGroupName = resourceGroupId.ResourceGroupName
 					}
 				}
 			}
-
-			if err := pluginsdk.SetResourceIdentityData(metadata.ResourceData, id); err != nil {
-				return err
+			if backupDsp := policyParameters.BackupDatasourceParametersList; backupDsp != nil {
+				if value := flattenBackupDatasourceParameters(*backupDsp); value != nil {
+					state.BackupDatasourceParameters = pointer.From(value)
+				}
 			}
-			return metadata.Encode(&state)
-		},
+		}
 	}
+
+	if err := pluginsdk.SetResourceIdentityData(metadata.ResourceData, id); err != nil {
+		return err
+	}
+	return metadata.Encode(&state)
 }
 
 func (r DataProtectionBackupInstanceKubernatesClusterResource) Delete() sdk.ResourceFunc {
 	return sdk.ResourceFunc{
 		Timeout: 30 * time.Minute,
 		Func: func(ctx context.Context, metadata sdk.ResourceMetaData) error {
-			client := metadata.Client.DataProtection.BackupInstanceClient
+			client := metadata.Client.DataProtection.BackupInstanceClient20260601
 
 			id, err := backupinstanceresources.ParseBackupInstanceID(metadata.ResourceData.Id())
 			if err != nil {

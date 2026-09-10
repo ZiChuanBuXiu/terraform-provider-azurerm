@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2025-07-01/backupinstanceresources"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/dataprotection/2026-06-01/backupinstanceresources"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -55,6 +55,7 @@ func TestAccDataProtectionBackupInstanceKubernetesCluster_complete(t *testing.T)
 			Config: r.complete(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("use_system_assigned_identity").HasValue("true"),
 			),
 		},
 		data.ImportStep(),
@@ -66,7 +67,7 @@ func (r DataProtectionBackupInstanceKubernetesClusterResource) Exists(ctx contex
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.DataProtection.BackupInstanceClient.BackupInstancesGet(ctx, *id)
+	resp, err := client.DataProtection.BackupInstanceClient20260601.BackupInstancesGet(ctx, *id)
 	if err != nil {
 		if response.WasNotFound(resp.HttpResponse) {
 			return pointer.To(false), nil
@@ -282,6 +283,7 @@ resource "azurerm_data_protection_backup_instance_kubernetes_cluster" "test" {
   backup_policy_id             = azurerm_data_protection_backup_policy_kubernetes_cluster.test.id
   kubernetes_cluster_id        = azurerm_kubernetes_cluster.test.id
   snapshot_resource_group_name = azurerm_resource_group.snap.name
+  use_system_assigned_identity = true
 }
 `, template, data.RandomInteger)
 }
