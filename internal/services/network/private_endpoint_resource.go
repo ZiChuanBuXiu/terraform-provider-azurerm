@@ -106,6 +106,12 @@ func resourcePrivateEndpoint() *pluginsdk.Resource {
 				ForceNew: true,
 			},
 
+			"billing_sku": {
+				Type:         pluginsdk.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice(privateendpoints.PossibleValuesForPrivateEndpointBillingSku(), false),
+			},
+
 			"private_dns_zone_group": {
 				Type:     pluginsdk.TypeList,
 				Optional: true,
@@ -364,6 +370,10 @@ func resourcePrivateEndpointCreate(d *pluginsdk.ResourceData, meta any) error {
 		Tags: tags.Expand(d.Get("tags").(map[string]any)),
 	}
 
+	if billingSku, ok := d.GetOk("billing_sku"); ok {
+		parameters.Properties.BillingSku = pointer.To(privateendpoints.PrivateEndpointBillingSku(billingSku.(string)))
+	}
+
 	if err := validatePrivateLinkServiceId(*parameters.Properties.PrivateLinkServiceConnections); err != nil {
 		return err
 	}
@@ -547,6 +557,10 @@ func resourcePrivateEndpointUpdate(d *pluginsdk.ResourceData, meta any) error {
 		Tags: tags.Expand(d.Get("tags").(map[string]any)),
 	}
 
+	if billingSku, ok := d.GetOk("billing_sku"); ok {
+		parameters.Properties.BillingSku = pointer.To(privateendpoints.PrivateEndpointBillingSku(billingSku.(string)))
+	}
+
 	if err = validatePrivateLinkServiceId(*parameters.Properties.PrivateLinkServiceConnections); err != nil {
 		return err
 	}
@@ -703,6 +717,7 @@ func resourcePrivateEndpointFlatten(ctx context.Context, metaClient *clients.Cli
 			}
 			d.Set("subnet_id", subnetId)
 			d.Set("custom_network_interface_name", pointer.From(props.CustomNetworkInterfaceName))
+			d.Set("billing_sku", pointer.From(props.BillingSku))
 
 			if fetchCompleteData {
 				privateDnsZoneIds, err := retrievePrivateDnsZoneGroupsForPrivateEndpoint(ctx, dnsClient, *id)

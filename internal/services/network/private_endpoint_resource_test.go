@@ -14,10 +14,43 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/network"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
 type PrivateEndpointResource struct{}
+
+func TestPrivateEndpointBillingSkuSchema(t *testing.T) {
+	resource := network.Registration{}.SupportedResources()["azurerm_private_endpoint"]
+	billingSku := resource.Schema["billing_sku"]
+	if billingSku == nil {
+		t.Fatal("missing billing_sku schema")
+	}
+	if billingSku.Type != pluginsdk.TypeString || !billingSku.Optional || billingSku.Computed || billingSku.ForceNew || billingSku.Default != nil || billingSku.DefaultFunc != nil {
+		t.Fatal("billing_sku must be an updatable optional string without a default or computed value")
+	}
+	if billingSku.ValidateFunc == nil {
+		t.Fatal("billing_sku must validate its enum values")
+	}
+
+	for _, testCase := range []struct {
+		value string
+		valid bool
+	}{
+		{value: "Fixed", valid: true},
+		{value: "PayAsYouGo", valid: true},
+		{value: "fixed", valid: false},
+		{value: "Standard", valid: false},
+		{value: "", valid: false},
+	} {
+		t.Run(testCase.value, func(t *testing.T) {
+			_, validationErrors := billingSku.ValidateFunc(testCase.value, "billing_sku")
+			if valid := len(validationErrors) == 0; valid != testCase.valid {
+				t.Fatalf("expected valid=%t, got errors: %+v", testCase.valid, validationErrors)
+			}
+		})
+	}
+}
 
 func TestAccPrivateEndpoint_basic(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_private_endpoint", "test")
@@ -80,6 +113,46 @@ func TestAccPrivateEndpoint_withCustomNicName(t *testing.T) {
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("custom_network_interface_name").Exists(),
+			),
+		},
+		data.ImportStep(),
+	})
+}
+
+func TestAccPrivateEndpoint_billingSku(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_private_endpoint", "test")
+	r := PrivateEndpointResource{}
+
+	data.ResourceTest(t, r, []acceptance.TestStep{
+		{
+			Config: r.withBillingSku(data, "Fixed"),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("billing_sku").HasValue("Fixed"),
+			),
+		},
+		data.ImportStep(),
+		{
+			Config: r.withBillingSku(data, "PayAsYouGo"),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("billing_sku").HasValue("PayAsYouGo"),
+			),
+		},
+		data.ImportStep(),
+		{
+			Config: r.withBillingSku(data, "Fixed"),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("billing_sku").HasValue("Fixed"),
+			),
+		},
+		data.ImportStep(),
+		{
+			Config: r.withTag(data),
+			Check: acceptance.ComposeTestCheckFunc(
+				check.That(data.ResourceName).ExistsInAzure(r),
+				check.That(data.ResourceName).Key("tags.env").HasValue("TEST"),
 			),
 		},
 		data.ImportStep(),
@@ -685,6 +758,26 @@ resource "azurerm_private_endpoint" "test" {
   }
 }
 `, r.template(data, r.serviceAutoApprove(data)), data.RandomInteger, data.RandomInteger)
+}
+
+func (r PrivateEndpointResource) withBillingSku(data acceptance.TestData, billingSku string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_private_endpoint" "test" {
+  name                = "acctest-privatelink-%d"
+  resource_group_name = azurerm_resource_group.test.name
+  location            = azurerm_resource_group.test.location
+  subnet_id           = azurerm_subnet.endpoint.id
+  billing_sku         = %q
+
+  private_service_connection {
+    name                           = azurerm_private_link_service.test.name
+    is_manual_connection           = false
+    private_connection_resource_id = azurerm_private_link_service.test.id
+  }
+}
+`, r.template(data, r.serviceAutoApprove(data)), data.RandomInteger, billingSku)
 }
 
 func (r PrivateEndpointResource) requestMessage(data acceptance.TestData, msg string) string {
