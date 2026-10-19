@@ -19,7 +19,7 @@ require (
 	github.com/hashicorp/go-azure-helpers v0.82.0
 	github.com/hashicorp/go-azure-sdk/data-plane v0.20261005.1221110
 	github.com/hashicorp/go-azure-sdk/resource-manager v0.20261005.1221110
-	github.com/hashicorp/go-azure-sdk/sdk v0.20261005.1221110
+	github.com/hashicorp/go-azure-sdk/sdk v0.20261015.1183423
 	github.com/hashicorp/go-cty v1.5.0
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
@@ -112,5 +112,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.7.3 // indirect
 )
+
+replace github.com/hashicorp/go-azure-sdk/resource-manager => /home/hillfeng/repos/go-azure-sdk/resource-manager
 
 go 1.26.9

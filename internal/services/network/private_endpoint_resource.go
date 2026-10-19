@@ -23,7 +23,7 @@ import (
 	mariadbServers "github.com/hashicorp/go-azure-sdk/resource-manager/mariadb/2018-06-01/servers"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/mysql/2017-12-01/servers"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/privatednszonegroups"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/privateendpoints"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-01-01/privateendpoints"
 	postgresqlServers "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2017-12-01/servers"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/privatedns/2024-06-01/privatezones"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/redis/2024-03-01/redis"
@@ -109,6 +109,7 @@ func resourcePrivateEndpoint() *pluginsdk.Resource {
 			"billing_sku": {
 				Type:         pluginsdk.TypeString,
 				Optional:     true,
+				Default:      privateendpoints.PrivateEndpointBillingSkuPayAsYouGo,
 				ValidateFunc: validation.StringInSlice(privateendpoints.PossibleValuesForPrivateEndpointBillingSku(), false),
 			},
 
