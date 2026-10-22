@@ -66,6 +66,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/graphservices"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hdinsight"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/healthcare"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/horizondb"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hsm"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/hybridcompute"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/iotcentral"
@@ -187,6 +188,7 @@ func SupportedTypedServices() []sdk.TypedServiceRegistration {
 		fabric.Registration{},
 		fluidrelay.Registration{},
 		graphservices.Registration{},
+		horizondb.Registration{},
 		hybridcompute.Registration{},
 		iotcentral.Registration{},
 		iothub.Registration{},
@@ -404,6 +406,7 @@ func SupportedFrameworkServices() []sdk.FrameworkServiceRegistration {
 		graphservices.Registration{},
 		hdinsight.Registration{},
 		healthcare.Registration{},
+		horizondb.Registration{},
 		hsm.Registration{},
 		hybridcompute.Registration{},
 		iotcentral.Registration{},

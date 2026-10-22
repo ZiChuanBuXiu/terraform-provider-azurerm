@@ -64,6 +64,7 @@ var services = mapOf(
         "hdinsight" to "HDInsight",
         "hsm" to "Hardware Security Module",
         "healthcare" to "Health Care",
+        "horizondb" to "HorizonDB",
         "hybridcompute" to "Hybrid Compute",
         "iotcentral" to "IoT Central",
         "iothub" to "IoT Hub",
