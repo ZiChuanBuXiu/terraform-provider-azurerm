@@ -34,7 +34,7 @@ func horizondbClusterPoolTestConfig(name string) map[string]interface{} {
 		config["pool"] = []interface{}{map[string]interface{}{
 			"name": name, "node_count": 1, "high_availability_mode": "Disabled",
 			"compute": []interface{}{map[string]interface{}{
-				"type": "Provisioned", "processor": "AMD", "generation": 1, "vcores": 4,
+				"processor": "AMD", "generation": 1, "vcores": 4,
 			}},
 		}}
 	}
@@ -71,6 +71,7 @@ func TestHorizondbClusterPoolSchemaAndDiff(t *testing.T) {
 	require.True(t, fields["id"].Computed)
 	require.False(t, fields["name"].ForceNew)
 	require.NotContains(t, fields, "tags")
+	require.NotContains(t, fields, "maintenance_management_type")
 	for _, name := range []string{"a", "pool-1", strings.Repeat("p", 63)} {
 		_, errs := fields["name"].ValidateFunc(name, "pool.name")
 		require.Empty(t, errs)
@@ -84,6 +85,7 @@ func TestHorizondbClusterPoolSchemaAndDiff(t *testing.T) {
 		require.NotEmpty(t, errs)
 	}
 	compute := fields["compute"].Elem.(*schema.Resource).Schema
+	require.NotContains(t, compute, "type")
 	for _, cores := range []int{1, 193} {
 		_, errs := compute["vcores"].ValidateFunc(cores, "pool.compute.vcores")
 		require.NotEmpty(t, errs)
@@ -102,7 +104,7 @@ func TestHorizondbClusterPoolSchemaAndDiff(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			data := schema.TestResourceDataRaw(t, wrapped.Schema, horizondbClusterPoolTestConfig(test.old))
-			data.SetId(clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example").ID())
+			data.SetId(clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example").ID())
 			config := horizondbClusterPoolTestConfig(test.new)
 			if test.new != "" {
 				pool := config["pool"].([]interface{})[0].(map[string]interface{})
@@ -145,8 +147,47 @@ func TestHorizondbClusterPoolUnknownConfig(t *testing.T) {
 	}
 }
 
+func TestFindHorizondbDefaultParameterGroup(t *testing.T) {
+	group17 := defaultparametergroups.DefaultParameterGroup{
+		Id: pointer.To("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.HorizonDb/locations/westeurope/parameterGroups/default17"),
+		Properties: &defaultparametergroups.DefaultParameterGroupProperties{
+			PostgreSqlVersion: defaultparametergroups.PostgreSqlVersion("17"),
+		},
+	}
+	group18 := defaultparametergroups.DefaultParameterGroup{
+		Id: pointer.To("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.HorizonDb/locations/westeurope/parameterGroups/default18"),
+		Properties: &defaultparametergroups.DefaultParameterGroupProperties{
+			PostgreSqlVersion: defaultparametergroups.PostgreSqlVersion("18"),
+		},
+	}
+	for _, test := range []struct {
+		name          string
+		groups        []defaultparametergroups.DefaultParameterGroup
+		version       string
+		expectedId    string
+		errorContains string
+	}{
+		{name: "version17", groups: []defaultparametergroups.DefaultParameterGroup{group18, group17}, version: "17", expectedId: *group17.Id},
+		{name: "version18", groups: []defaultparametergroups.DefaultParameterGroup{group17, group18}, version: "18", expectedId: *group18.Id},
+		{name: "empty", version: "17", errorContains: "no default parameter group"},
+		{name: "missingVersion", groups: []defaultparametergroups.DefaultParameterGroup{group17}, version: "18", errorContains: "no default parameter group"},
+		{name: "duplicateVersion", groups: []defaultparametergroups.DefaultParameterGroup{group17, group17}, version: "17", errorContains: "multiple default parameter groups"},
+		{name: "missingProperties", groups: []defaultparametergroups.DefaultParameterGroup{{}}, version: "17", errorContains: "no properties"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := findHorizondbDefaultParameterGroup(test.groups, test.version)
+			if test.errorContains != "" {
+				require.ErrorContains(t, err, test.errorContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectedId, pointer.From(result.Id))
+		})
+	}
+}
+
 func TestHorizondbClusterPoolRead(t *testing.T) {
-	id := clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example")
+	id := clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example")
 	for _, scenario := range []string{"import", "missing pool", "multiple pools", "wrong parent", "missing properties", "malformed ID", "forbidden", "missing cluster"} {
 		t.Run(scenario, func(t *testing.T) {
 			model := horizondbClusterPoolTestModel(id, "pool")
@@ -159,7 +200,7 @@ func TestHorizondbClusterPoolRead(t *testing.T) {
 			if scenario == "missing properties" {
 				model.Properties = nil
 			}
-			client := newHorizondbParameterTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := newHorizondbTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
 				if r.URL.Path == id.ID() {
 					if scenario == "missing cluster" {
@@ -212,7 +253,7 @@ func TestHorizondbClusterPoolRead(t *testing.T) {
 }
 
 func TestHorizondbClusterPoolUpdate(t *testing.T) {
-	id := clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example")
+	id := clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example")
 	for _, scenario := range []string{"add", "scale and cluster tags", "remove", "already removed", "rename guard", "remote changed", "patch failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			var poolPuts, poolPatches, poolDeletes, clusterPatches atomic.Int32
@@ -220,7 +261,7 @@ func TestHorizondbClusterPoolUpdate(t *testing.T) {
 			if scenario == "remote changed" {
 				model = horizondbClusterPoolTestModel(id, "other")
 			}
-			client := newHorizondbParameterTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := newHorizondbTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "2026-10-01-preview", r.URL.Query().Get("api-version"))
 				switch {
 				case r.URL.Path == id.ID():
@@ -256,6 +297,7 @@ func TestHorizondbClusterPoolUpdate(t *testing.T) {
 						if assert.NotNil(t, body.Properties) {
 							assert.Equal(t, pools.ParameterApplyMethodImmediate, body.Properties.ParameterGroup.ApplyMethod)
 							assert.Contains(t, body.Properties.ParameterGroup.ParameterGroupResourceId, "/locations/eastus2/parameterGroups/default18")
+							assert.Equal(t, pools.PoolComputeModelTypeProvisioned, body.Properties.ComputeModel.Type)
 							assert.Equal(t, int64(1), body.Properties.NodeCount)
 							assert.Equal(t, pools.PoolHighAvailabilityModeDisabled, body.Properties.HighAvailability.Mode)
 							assert.Equal(t, pools.ScheduledMaintenanceManagementTypeSystem, body.Properties.ScheduledMaintenance.ScheduledMaintenanceProperties().MaintenanceManagementType)
@@ -270,6 +312,8 @@ func TestHorizondbClusterPoolUpdate(t *testing.T) {
 						assert.NotContains(t, properties, "state")
 						assert.Equal(t, float64(2), properties["nodeCount"])
 						assert.Equal(t, map[string]interface{}{"mode": "ZoneRedundant"}, properties["highAvailability"])
+						assert.Equal(t, "Provisioned", properties["computeModel"].(map[string]interface{})["type"])
+						assert.Equal(t, "System", properties["scheduledMaintenance"].(map[string]interface{})["maintenanceManagementType"])
 						assert.NotContains(t, body, "tags")
 						if scenario == "scale and cluster tags" {
 							assert.Equal(t, int32(1), clusterPatches.Load())
@@ -356,12 +400,12 @@ func TestHorizondbClusterPoolUpdate(t *testing.T) {
 }
 
 func TestHorizondbClusterPoolCreateAndRestore(t *testing.T) {
-	id := clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example")
+	id := clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example")
 	for _, scenario := range []string{"create", "restore", "pool failure", "overwrite", "overwrite without pool"} {
 		t.Run(scenario, func(t *testing.T) {
 			var clusterPuts, poolPuts, poolPatches, poolDeletes atomic.Int32
 			pool := horizondbClusterPoolTestModel(id, "pool")
-			client := newHorizondbParameterTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := newHorizondbTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.URL.Path == id.ID():
 					if r.Method == http.MethodPut {

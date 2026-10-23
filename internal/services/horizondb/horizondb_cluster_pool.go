@@ -23,16 +23,14 @@ import (
 )
 
 type HorizondbClusterPool struct {
-	Name                      string                        `tfschema:"name"`
-	Id                        string                        `tfschema:"id"`
-	Compute                   []HorizondbClusterPoolCompute `tfschema:"compute"`
-	NodeCount                 int64                         `tfschema:"node_count"`
-	HighAvailabilityMode      string                        `tfschema:"high_availability_mode"`
-	MaintenanceManagementType string                        `tfschema:"maintenance_management_type"`
+	Name                 string                        `tfschema:"name"`
+	Id                   string                        `tfschema:"id"`
+	Compute              []HorizondbClusterPoolCompute `tfschema:"compute"`
+	NodeCount            int64                         `tfschema:"node_count"`
+	HighAvailabilityMode string                        `tfschema:"high_availability_mode"`
 }
 
 type HorizondbClusterPoolCompute struct {
-	Type       string `tfschema:"type"`
 	Processor  string `tfschema:"processor"`
 	Generation int64  `tfschema:"generation"`
 	VCores     int64  `tfschema:"vcores"`
@@ -40,22 +38,25 @@ type HorizondbClusterPoolCompute struct {
 
 func horizondbClusterPoolSchema() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
-		Type: pluginsdk.TypeList, Optional: true, MaxItems: 1,
+		Type:     pluginsdk.TypeList,
+		Optional: true,
+		MinItems: 1,
+		MaxItems: 1,
 		Elem: &pluginsdk.Resource{Schema: map[string]*pluginsdk.Schema{
 			"name": {
-				Type: pluginsdk.TypeString, Required: true,
+				Type:     pluginsdk.TypeString,
+				Required: true,
 				ValidateFunc: validation.All(
 					validation.StringLenBetween(1, 63),
 					validation.StringMatch(regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), "must contain only lowercase letters, numbers and hyphens and start and end with a letter or number"),
 				),
 			},
 			"compute": {
-				Type: pluginsdk.TypeList, Required: true, MinItems: 1, MaxItems: 1,
+				Type:     pluginsdk.TypeList,
+				Required: true,
+				MinItems: 1,
+				MaxItems: 1,
 				Elem: &pluginsdk.Resource{Schema: map[string]*pluginsdk.Schema{
-					"type": {
-						Type: pluginsdk.TypeString, Required: true,
-						ValidateFunc: validation.StringInSlice(pools.PossibleValuesForPoolComputeModelType(), false),
-					},
 					"processor": {
 						Type: pluginsdk.TypeString, Required: true,
 						ValidateFunc: validation.StringInSlice(pools.PossibleValuesForComputeProcessorType(), false),
@@ -71,18 +72,19 @@ func horizondbClusterPoolSchema() *pluginsdk.Schema {
 				}},
 			},
 			"node_count": {
-				Type: pluginsdk.TypeInt, Required: true,
+				Type:         pluginsdk.TypeInt,
+				Required:     true,
 				ValidateFunc: validation.IntBetween(1, 16),
 			},
 			"high_availability_mode": {
-				Type: pluginsdk.TypeString, Required: true,
+				Type:         pluginsdk.TypeString,
+				Required:     true,
 				ValidateFunc: validation.StringInSlice(pools.PossibleValuesForPoolHighAvailabilityMode(), false),
 			},
-			"maintenance_management_type": {
-				Type: pluginsdk.TypeString, Optional: true, Default: string(pools.ScheduledMaintenanceManagementTypeSystem),
-				ValidateFunc: validation.StringInSlice(pools.PossibleValuesForScheduledMaintenanceManagementType(), false),
+			"id": {
+				Type:     pluginsdk.TypeString,
+				Computed: true,
 			},
-			"id": {Type: pluginsdk.TypeString, Computed: true},
 		}},
 	}
 }
@@ -149,22 +151,24 @@ func flattenHorizondbClusterPool(clusterId clusters.ClusterId, model *pools.Pool
 		return nil, fmt.Errorf("pool %s does not belong to %s", id, clusterId)
 	}
 	props := model.Properties
-	if props == nil || props.ComputeModel.Type == "" || props.ComputeModel.ComputeProcessor == "" || props.ComputeModel.ComputeGeneration < 1 || props.ComputeModel.VCores < 2 || props.NodeCount < 1 || props.HighAvailability.Mode == "" {
+	if props == nil || props.ComputeModel.ComputeProcessor == "" || props.ComputeModel.ComputeGeneration < 1 || props.ComputeModel.VCores < 2 || props.NodeCount < 1 || props.HighAvailability.Mode == "" {
 		return nil, fmt.Errorf("retrieving %s: required pool configuration is missing", id)
 	}
-	maintenance := string(pools.ScheduledMaintenanceManagementTypeSystem)
+	if props.ComputeModel.Type != pools.PoolComputeModelTypeProvisioned {
+		return nil, fmt.Errorf("retrieving %s: unsupported compute model type %q", id, props.ComputeModel.Type)
+	}
 	if props.ScheduledMaintenance != nil {
-		maintenance = string(props.ScheduledMaintenance.ScheduledMaintenanceProperties().MaintenanceManagementType)
-		if maintenance != string(pools.ScheduledMaintenanceManagementTypeSystem) {
+		maintenance := props.ScheduledMaintenance.ScheduledMaintenanceProperties().MaintenanceManagementType
+		if maintenance != pools.ScheduledMaintenanceManagementTypeSystem {
 			return nil, fmt.Errorf("retrieving %s: unsupported maintenance management type %q", id, maintenance)
 		}
 	}
 	return []HorizondbClusterPool{{
 		Name: id.PoolName, Id: id.ID(), NodeCount: props.NodeCount,
-		HighAvailabilityMode: string(props.HighAvailability.Mode), MaintenanceManagementType: maintenance,
+		HighAvailabilityMode: string(props.HighAvailability.Mode),
 		Compute: []HorizondbClusterPoolCompute{{
-			Type: string(props.ComputeModel.Type), Processor: string(props.ComputeModel.ComputeProcessor),
-			Generation: props.ComputeModel.ComputeGeneration, VCores: props.ComputeModel.VCores,
+			Processor: string(props.ComputeModel.ComputeProcessor), Generation: props.ComputeModel.ComputeGeneration,
+			VCores: props.ComputeModel.VCores,
 		}},
 	}}, nil
 }
@@ -247,7 +251,7 @@ func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMet
 
 func expandHorizondbClusterPoolCompute(input HorizondbClusterPoolCompute) pools.PoolComputeModel {
 	return pools.PoolComputeModel{
-		Type: pools.PoolComputeModelType(input.Type), ComputeProcessor: pools.ComputeProcessorType(input.Processor),
+		Type: pools.PoolComputeModelTypeProvisioned, ComputeProcessor: pools.ComputeProcessorType(input.Processor),
 		ComputeGeneration: input.Generation, VCores: input.VCores,
 	}
 }
@@ -263,7 +267,7 @@ func expandHorizondbClusterPoolUpdate(state HorizondbClusterPool) pools.PoolForP
 			NodeCount:        pointer.To(state.NodeCount),
 			HighAvailability: &pools.PoolHighAvailabilityPatch{Mode: pointer.To(pools.PoolHighAvailabilityMode(state.HighAvailabilityMode))},
 			ScheduledMaintenance: &pools.ScheduledMaintenancePropertiesForPatchUpdate{
-				MaintenanceManagementType: pointer.To(pools.ScheduledMaintenanceManagementType(state.MaintenanceManagementType)),
+				MaintenanceManagementType: pointer.To(pools.ScheduledMaintenanceManagementTypeSystem),
 			},
 		},
 	}
@@ -297,4 +301,25 @@ func defaultHorizondbClusterPoolParameterGroup(ctx context.Context, metadata sdk
 		return "", fmt.Errorf("default parameter group %q does not match the cluster subscription and location", groupId.ID())
 	}
 	return groupId.ID(), nil
+}
+
+func findHorizondbDefaultParameterGroup(groups []defaultparametergroups.DefaultParameterGroup, version string) (*defaultparametergroups.DefaultParameterGroup, error) {
+	var result *defaultparametergroups.DefaultParameterGroup
+	for index := range groups {
+		group := &groups[index]
+		if group.Properties == nil {
+			return nil, errors.New("default parameter group response has no properties")
+		}
+		if string(group.Properties.PostgreSqlVersion) != version {
+			continue
+		}
+		if result != nil {
+			return nil, fmt.Errorf("multiple default parameter groups found for PostgreSQL version `%s`", version)
+		}
+		result = group
+	}
+	if result == nil {
+		return nil, fmt.Errorf("no default parameter group found for PostgreSQL version `%s`", version)
+	}
+	return result, nil
 }

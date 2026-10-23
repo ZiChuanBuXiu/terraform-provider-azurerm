@@ -217,7 +217,7 @@ func TestHorizondbClusterEncryptionDiff(t *testing.T) {
 
 func TestHorizondbClusterCreateModeDiff(t *testing.T) {
 	wrapped := sdk.WrappedResource(HorizondbClusterResource{})
-	id := clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example")
+	id := clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example")
 	config := func(mode string) map[string]interface{} {
 		values := map[string]interface{}{
 			"name": id.ClusterName, "resource_group_name": id.ResourceGroupName, "location": "eastus2",
@@ -625,9 +625,9 @@ func TestHorizondbClusterCreate(t *testing.T) {
 }
 
 func TestHorizondbClusterAIRemovalDefaultsToDisabled(t *testing.T) {
-	id := clusters.NewClusterID(horizondbParameterTestSubscription, "example-rg", "example")
+	id := clusters.NewClusterID(horizondbTestSubscription, "example-rg", "example")
 	var patches atomic.Int32
-	client := newHorizondbParameterTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client := newHorizondbTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, id.ID(), r.URL.Path)
 		switch r.Method {
 		case http.MethodPatch:

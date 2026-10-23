@@ -212,17 +212,6 @@ func TestAccHorizondbCluster_poolNameCollision(t *testing.T) {
 	}})
 }
 
-func TestAccHorizondbCluster_poolParameterGroup(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
-	r := HorizondbClusterResource{}
-	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
-		{Config: r.poolParameterGroup(data, 4), Check: check.That("azurerm_horizondb_pool_parameter_group_association.test").ExistsInAzure(HorizondbPoolParameterGroupAssociationResource{})},
-		data.ImportStep(),
-		{Config: r.poolParameterGroup(data, 8), Check: check.That("azurerm_horizondb_pool_parameter_group_association.test").ExistsInAzure(HorizondbPoolParameterGroupAssociationResource{})},
-		data.ImportStep(),
-	})
-}
-
 func (HorizondbClusterResource) preCheck(t *testing.T, variables ...string) {
 	t.Helper()
 	for _, variable := range variables {
@@ -282,10 +271,8 @@ resource "azurerm_horizondb_cluster" "test" {
     name                        = %q
     node_count                  = %d
     high_availability_mode      = %q
-    maintenance_management_type = "System"
 
     compute {
-      type       = "Provisioned"
       processor  = "AMD"
       generation = 1
       vcores     = %d
@@ -297,28 +284,6 @@ resource "azurerm_horizondb_cluster" "test" {
   }
 }
 `, r.template(data), data.RandomInteger, name, nodes, mode, cores, cores)
-}
-
-func (r HorizondbClusterResource) poolParameterGroup(data acceptance.TestData, cores int) string {
-	return fmt.Sprintf(`
-%s
-resource "azurerm_horizondb_parameter_group" "test" {
-  name                = "acctest-parameters-%d"
-  resource_group_name = azurerm_resource_group.test.name
-  location            = azurerm_resource_group.test.location
-  postgresql_version  = "18"
-
-  parameters = {
-    application_name = "acceptance"
-  }
-}
-
-resource "azurerm_horizondb_pool_parameter_group_association" "test" {
-  horizondb_pool_id            = azurerm_horizondb_cluster.test.pool[0].id
-  horizondb_parameter_group_id = azurerm_horizondb_parameter_group.test.id
-  apply_method                 = "PendingReboot"
-}
-`, r.withPool(data, "primary", 1, "Disabled", cores), data.RandomInteger)
 }
 
 func (r HorizondbClusterResource) complete(data acceptance.TestData) string {

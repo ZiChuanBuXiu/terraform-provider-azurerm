@@ -101,7 +101,7 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 		"backup_retention_days": {
 			Type:         pluginsdk.TypeInt,
 			Optional:     true,
-			Default:      7,
+			Computed:     true,
 			ValidateFunc: validation.IntBetween(1, 35),
 		},
 		"create_mode": {

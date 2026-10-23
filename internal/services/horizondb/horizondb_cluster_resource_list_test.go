@@ -59,7 +59,6 @@ resource "azurerm_horizondb_cluster" "test" {
     high_availability_mode = "Disabled"
 
     compute {
-      type       = "Provisioned"
       processor  = "AMD"
       generation = 1
       vcores     = 4

@@ -32,7 +32,6 @@ resource "azurerm_horizondb_cluster" "example" {
     high_availability_mode = "Disabled"
 
     compute {
-      type       = "Provisioned"
       processor  = "AMD"
       generation = 1
       vcores     = 4
@@ -79,9 +78,9 @@ The following arguments are supported:
 
 ~> **Note:** This resource owns the Cluster's singleton Pool. Refresh and import discover an existing Pool, even if it was created outside Terraform. Omitting the block from configuration plans its deletion. Do not manage the same Pool's compute configuration through another resource or deployment.
 
-~> **Note:** Removing the `pool` block deletes the Pool, its Pool-scoped Endpoint, and that Endpoint's firewall rules, without deleting the Cluster. Because it is the only Pool, existing Cluster private endpoint connections are rejected. Customer-owned private endpoints are not deleted. Remove dependent parameter-group associations and firewall resources before removing the Pool.
+~> **Note:** Removing the `pool` block deletes the Pool, its Pool-scoped Endpoint, and that Endpoint's firewall rules, without deleting the Cluster. Because it is the only Pool, existing Cluster private endpoint connections are rejected. Customer-owned private endpoints are not deleted. Remove dependent firewall resources before removing the Pool.
 
--> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Use a [HorizonDB Pool Parameter Group Association](horizondb_pool_parameter_group_association.html) referencing `pool[0].id` to attach a customer-created group. Compute updates preserve that association, and this resource does not automatically restart Pools.
+-> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Compute updates preserve the Pool's parameter-group association, and this resource does not automatically restart Pools.
 
 * `postgresql_version` - (Optional) The PostgreSQL major version. Possible values are `17` and `18`. Changing this forces a new resource to be created.
 
@@ -104,8 +103,6 @@ A `compute` block supports the following:
 ~> **Note:** The generation must be between `1` and `2147483647`. Azure validates availability for the selected region and processor.
 
 * `processor` - (Required) The processor type. Possible values are `AMD` and `Intel`.
-
-* `type` - (Required) The compute model type. The only possible value is `Provisioned`.
 
 * `vcores` - (Required) The provisioned compute capacity in vCores.
 
@@ -151,10 +148,6 @@ A `pool` block supports the following:
 
 ~> **Note:** The node count must be between `1` and `16`. Zero nodes is not a supported configuration; stopping compute is a separate Azure operation.
 
-* `maintenance_management_type` - (Optional) The scheduled maintenance management type; the only possible value is `System`. Defaults to `System`.
-
-* `tags` - (Optional) A mapping of tags to assign to the Pool.
-
 ---
 
 A `restore` block supports the following:
@@ -191,10 +184,10 @@ A `pool` block exports the following:
 
 The `timeouts` block allows you to specify [timeouts](https://developer.hashicorp.com/terraform/language/resources/configure#define-operation-timeouts) for certain actions:
 
-* `create` - (Defaults to 60 minutes) Used when creating the HorizonDB Cluster.
+* `create` - (Defaults to 1 hour) Used when creating the HorizonDB Cluster.
 * `read` - (Defaults to 5 minutes) Used when retrieving the HorizonDB Cluster.
-* `update` - (Defaults to 60 minutes) Used when updating the HorizonDB Cluster.
-* `delete` - (Defaults to 60 minutes) Used when deleting the HorizonDB Cluster.
+* `update` - (Defaults to 1 hour) Used when updating the HorizonDB Cluster.
+* `delete` - (Defaults to 1 hour) Used when deleting the HorizonDB Cluster.
 
 ## Import
 
