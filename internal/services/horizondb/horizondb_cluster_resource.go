@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/resourceids"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/clusters"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/passwordauthentications"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/pools"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
@@ -35,7 +36,8 @@ type HorizondbClusterResourceModel struct {
 	Location                   string                               `tfschema:"location"`
 	PostgresqlVersion          string                               `tfschema:"postgresql_version"`
 	Pool                       []HorizondbClusterPool               `tfschema:"pool"`
-	AiModelManagementEnabled   bool                                 `tfschema:"ai_model_management_enabled"`
+	AdministratorLogin         string                               `tfschema:"administrator_login"`
+	AdministratorPassword      string                               `tfschema:"administrator_password"`
 	BackupRetentionDays        int64                                `tfschema:"backup_retention_days"`
 	CreateMode                 string                               `tfschema:"create_mode"`
 	CustomerManagedKey         []HorizondbClusterCustomerManagedKey `tfschema:"customer_managed_key"`
@@ -93,15 +95,22 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 		},
 		"resource_group_name": commonschema.ResourceGroupName(),
 		"location":            commonschema.Location(),
-		"ai_model_management_enabled": {
-			Type:     pluginsdk.TypeBool,
-			Optional: true,
-			Default:  false,
+		"administrator_login": {
+			Type:         pluginsdk.TypeString,
+			Required:     true,
+			ForceNew:     true,
+			ValidateFunc: validation.StringLenBetween(1, 63),
+		},
+		"administrator_password": {
+			Type:         pluginsdk.TypeString,
+			Required:     true,
+			Sensitive:    true,
+			ValidateFunc: validation.StringLenBetween(8, 128),
 		},
 		"backup_retention_days": {
 			Type:         pluginsdk.TypeInt,
 			Optional:     true,
-			Computed:     true,
+			Default:      7,
 			ValidateFunc: validation.IntBetween(1, 35),
 		},
 		"create_mode": {
@@ -312,16 +321,12 @@ func (r HorizondbClusterResource) Create() sdk.ResourceFunc {
 			if err := pluginsdk.SetResourceIdentityData(metadata.ResourceData, &id); err != nil {
 				return err
 			}
-			aiSettings := clusters.ClusterForPatchUpdate{Properties: &clusters.ClusterPropertiesForPatchUpdate{
-				AiModelManagement: pointer.To(horizondbAiModelManagement(state.AiModelManagementEnabled)),
-			}}
-			if err := client.UpdateThenPoll(ctx, id, aiSettings); err != nil {
-				return fmt.Errorf("configuring AI model management for %s: %+v", id, err)
-			}
 			if len(state.Pool) > 0 || metadata.Client.Features.SkipImportCheckOnCreateAndAllowOverwritingExistingResources {
-				return reconcileHorizondbClusterPool(ctx, metadata, id, state.Pool)
+				if err := reconcileHorizondbClusterPool(ctx, metadata, id, state.Pool); err != nil {
+					return err
+				}
 			}
-			return nil
+			return reconcileHorizondbClusterPasswordAuthentication(ctx, metadata, id, state)
 		},
 	}
 }
@@ -376,7 +381,20 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 				}
 			}
 			if metadata.ResourceData.HasChange("pool") {
-				return reconcileHorizondbClusterPool(ctx, metadata, *id, state.Pool)
+				if err := reconcileHorizondbClusterPool(ctx, metadata, *id, state.Pool); err != nil {
+					return err
+				}
+			}
+			if metadata.ResourceData.HasChange("administrator_password") {
+				authenticationId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
+				payload := passwordauthentications.PasswordAuthenticationForPatchUpdate{
+					Properties: &passwordauthentications.PasswordAuthenticationPropertiesForPatchUpdate{
+						AdministratorLoginPassword: pointer.To(state.AdministratorPassword),
+					},
+				}
+				if err := metadata.Client.HorizonDB.PasswordAuthenticationsClient.UpdateThenPoll(ctx, authenticationId, payload); err != nil {
+					return fmt.Errorf("updating password authentication for %s: %+v", id, err)
+				}
 			}
 			return nil
 		},
@@ -397,6 +415,20 @@ func (HorizondbClusterResource) Delete() sdk.ResourceFunc {
 			return nil
 		},
 	}
+}
+
+func reconcileHorizondbClusterPasswordAuthentication(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId, state HorizondbClusterResourceModel) error {
+	properties := passwordauthentications.PasswordAuthenticationProperties{
+		State:                      passwordauthentications.AuthenticationStateEnabled,
+		AdministratorLogin:         pointer.To(state.AdministratorLogin),
+		AdministratorLoginPassword: pointer.To(state.AdministratorPassword),
+	}
+	authenticationId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
+	payload := passwordauthentications.PasswordAuthentication{Properties: &properties}
+	if err := metadata.Client.HorizonDB.PasswordAuthenticationsClient.CreateOrReplaceThenPoll(ctx, authenticationId, payload); err != nil {
+		return fmt.Errorf("configuring password authentication for %s: %+v", id, err)
+	}
+	return nil
 }
 
 func configuredHorizondbBackupRetention(config cty.Value, retention int64) (*int64, error) {
@@ -484,9 +516,6 @@ func expandHorizondbClusterUpdates(state HorizondbClusterResourceModel, hasChang
 	if hasChange("public_network_access_enabled") {
 		payload.Properties.Network = &clusters.NetworkForPatchUpdate{PublicAccess: pointer.To(horizondbPublicNetworkAccess(state.PublicNetworkAccessEnabled))}
 	}
-	if hasChange("ai_model_management_enabled") {
-		payload.Properties.AiModelManagement = pointer.To(horizondbAiModelManagement(state.AiModelManagementEnabled))
-	}
 	updates := make([]clusters.ClusterForPatchUpdate, 0, 2)
 	if len(state.CustomerManagedKey) > 0 {
 		key := state.CustomerManagedKey[0]
@@ -504,7 +533,7 @@ func expandHorizondbClusterUpdates(state HorizondbClusterResourceModel, hasChang
 			payload.Properties.DataEncryption = &clusters.HorizonDbClusterDataEncryptionForPatchUpdate{PrimaryUserAssignedIdentityId: pointer.To(key.UserAssignedIdentityId)}
 		}
 	}
-	if payload.Tags != nil || payload.Properties.Backup != nil || payload.Properties.Network != nil || payload.Properties.AiModelManagement != nil || payload.Properties.DataEncryption != nil {
+	if payload.Tags != nil || payload.Properties.Backup != nil || payload.Properties.Network != nil || payload.Properties.DataEncryption != nil {
 		updates = append(updates, payload)
 	}
 	return updates
@@ -520,14 +549,15 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 	}
 	props := model.Properties
 	state := HorizondbClusterResourceModel{
-		Name:                     id.ClusterName,
-		ResourceGroupName:        id.ResourceGroupName,
-		Location:                 location.Normalize(model.Location),
-		PostgresqlVersion:        pointer.FromEnum(props.PostgreSqlVersion),
-		AiModelManagementEnabled: pointer.From(props.AiModelManagement) == clusters.AiModelManagementStatusEnabled,
-		BackupRetentionDays:      7,
-		CreateMode:               pointer.FromEnum(props.CreationMode),
-		Tags:                     pointer.From(model.Tags),
+		Name:                  id.ClusterName,
+		ResourceGroupName:     id.ResourceGroupName,
+		Location:              location.Normalize(model.Location),
+		PostgresqlVersion:     pointer.FromEnum(props.PostgreSqlVersion),
+		AdministratorLogin:    previous.AdministratorLogin,
+		AdministratorPassword: previous.AdministratorPassword,
+		BackupRetentionDays:   7,
+		CreateMode:            pointer.FromEnum(props.CreationMode),
+		Tags:                  pointer.From(model.Tags),
 	}
 	if state.CreateMode == "" {
 		state.CreateMode = string(clusters.ClusterCreateModeCreate)
@@ -597,11 +627,4 @@ func horizondbPublicNetworkAccess(enabled bool) clusters.PublicNetworkAccessStat
 		return clusters.PublicNetworkAccessStateEnabled
 	}
 	return clusters.PublicNetworkAccessStateDisabled
-}
-
-func horizondbAiModelManagement(enabled bool) clusters.AiModelManagementStatus {
-	if enabled {
-		return clusters.AiModelManagementStatusEnabled
-	}
-	return clusters.AiModelManagementStatusDisabled
 }

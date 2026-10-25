@@ -16,7 +16,7 @@ Manages a HorizonDB Cluster.
 
 ```hcl
 resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
+  name     = "example-resource-group"
   location = "East US 2"
 }
 
@@ -25,6 +25,9 @@ resource "azurerm_horizondb_cluster" "example" {
   resource_group_name = azurerm_resource_group.example.name
   location            = azurerm_resource_group.example.location
   postgresql_version  = "18"
+
+  administrator_login    = "exampleadmin"
+  administrator_password = var.horizondb_administrator_password
 
   pool {
     name                   = "example-pool"
@@ -56,9 +59,9 @@ The following arguments are supported:
 
 * `location` - (Required) The Azure Region where the HorizonDB Cluster should exist. Changing this forces a new resource to be created.
 
-* `ai_model_management_enabled` - (Optional) Whether `ai model management` is enabled. Defaults to `false`.
+* `administrator_login` - (Required) The PostgreSQL administrator login name. Changing this forces a new resource to be created.
 
--> **Note:** This setting is always applied in a separate update after the Cluster has been created, including when it defaults to `false`. Removing this argument from configuration resets it to `false` on the next apply.
+* `administrator_password` - (Required) The PostgreSQL administrator password.
 
 * `backup_retention_days` - (Optional) The backup retention period in days.
 

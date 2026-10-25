@@ -251,7 +251,8 @@ func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMet
 
 func expandHorizondbClusterPoolCompute(input HorizondbClusterPoolCompute) pools.PoolComputeModel {
 	return pools.PoolComputeModel{
-		Type: pools.PoolComputeModelTypeProvisioned, ComputeProcessor: pools.ComputeProcessorType(input.Processor),
+		Type: pools.PoolComputeModelTypeProvisioned, 
+		ComputeProcessor: pools.ComputeProcessorType(input.Processor),
 		ComputeGeneration: input.Generation, VCores: input.VCores,
 	}
 }

@@ -4,7 +4,6 @@
 package horizondb_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
@@ -14,12 +13,6 @@ import (
 )
 
 func TestAccHorizondbFirewallRule_resourceIdentity(t *testing.T) {
-	for _, v := range []string{"ARM_TEST_HORIZONDB_POOL_ID"} {
-		if os.Getenv(v) == "" {
-			t.Skipf("Skipping as `%s` was not specified", v)
-		}
-	}
-
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	r := HorizondbFirewallRuleResource{}
 

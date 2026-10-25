@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 )
 
-//go:generate go run ../../tools/generator-tests resourceidentity -properties "name" -compare-values "subscription_id:horizondb_pool_id,resource_group_name:horizondb_pool_id,cluster_name:horizondb_pool_id,pool_name:horizondb_pool_id" -test-env-vars "ARM_TEST_HORIZONDB_POOL_ID"
+//go:generate go run ../../tools/generator-tests resourceidentity -properties "name" -compare-values "subscription_id:horizondb_pool_id,resource_group_name:horizondb_pool_id,cluster_name:horizondb_pool_id,pool_name:horizondb_pool_id"
 type HorizondbFirewallRuleResource struct{}
 
 type HorizondbFirewallRuleResourceModel struct {

@@ -3,7 +3,6 @@ package horizondb_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"testing"
 
@@ -19,7 +18,6 @@ type HorizondbFirewallRuleResource struct{}
 
 func TestAccHorizondbFirewallRule_basic(t *testing.T) {
 	resource := HorizondbFirewallRuleResource{}
-	resource.preCheck(t)
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	data.ResourceTest(t, resource, []acceptance.TestStep{
 		{Config: resource.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(resource)},
@@ -29,7 +27,6 @@ func TestAccHorizondbFirewallRule_basic(t *testing.T) {
 
 func TestAccHorizondbFirewallRule_complete(t *testing.T) {
 	resource := HorizondbFirewallRuleResource{}
-	resource.preCheck(t)
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	data.ResourceTest(t, resource, []acceptance.TestStep{
 		{Config: resource.complete(data), Check: check.That(data.ResourceName).ExistsInAzure(resource)},
@@ -39,7 +36,6 @@ func TestAccHorizondbFirewallRule_complete(t *testing.T) {
 
 func TestAccHorizondbFirewallRule_requiresImport(t *testing.T) {
 	resource := HorizondbFirewallRuleResource{}
-	resource.preCheck(t)
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	data.ResourceTest(t, resource, []acceptance.TestStep{
 		{Config: resource.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(resource)},
@@ -49,7 +45,6 @@ func TestAccHorizondbFirewallRule_requiresImport(t *testing.T) {
 
 func TestAccHorizondbFirewallRule_update(t *testing.T) {
 	resource := HorizondbFirewallRuleResource{}
-	resource.preCheck(t)
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	data.ResourceTest(t, resource, []acceptance.TestStep{
 		{Config: resource.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(resource)},
@@ -63,7 +58,6 @@ func TestAccHorizondbFirewallRule_update(t *testing.T) {
 
 func TestAccHorizondbFirewallRule_invalidRange(t *testing.T) {
 	resource := HorizondbFirewallRuleResource{}
-	resource.preCheck(t)
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_firewall_rule", "test")
 	data.ResourceTest(t, resource, []acceptance.TestStep{
 		{
@@ -71,17 +65,6 @@ func TestAccHorizondbFirewallRule_invalidRange(t *testing.T) {
 			ExpectError: regexp.MustCompile("`end_ip_address` must be greater than or equal to `start_ip_address`"),
 		},
 	})
-}
-
-func (HorizondbFirewallRuleResource) preCheck(t *testing.T) {
-	t.Helper()
-	poolId := os.Getenv("ARM_TEST_HORIZONDB_POOL_ID")
-	if poolId == "" {
-		t.Skip("ARM_TEST_HORIZONDB_POOL_ID must identify an existing HorizonDB pool")
-	}
-	if _, err := firewallrules.ParsePoolID(poolId); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func (HorizondbFirewallRuleResource) Exists(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
@@ -106,18 +89,16 @@ func (resource HorizondbFirewallRuleResource) complete(data acceptance.TestData)
 
 func (HorizondbFirewallRuleResource) config(data acceptance.TestData, start, end, description string) string {
 	return fmt.Sprintf(`
-provider "azurerm" {
-  features {}
-}
+%s
 
 resource "azurerm_horizondb_firewall_rule" "test" {
   name              = "acctest-rule-%d"
-  horizondb_pool_id = %q
+  horizondb_pool_id  = azurerm_horizondb_cluster.test.pool[0].id
   start_ip_address  = %q
   end_ip_address    = %q
   description       = %q
 }
-`, data.RandomInteger, os.Getenv("ARM_TEST_HORIZONDB_POOL_ID"), start, end, description)
+`, HorizondbClusterResource{}.withPool(data, "primary", 1, "Disabled", 4), data.RandomInteger, start, end, description)
 }
 
 func (resource HorizondbFirewallRuleResource) requiresImport(data acceptance.TestData) string {
@@ -126,7 +107,7 @@ func (resource HorizondbFirewallRuleResource) requiresImport(data acceptance.Tes
 
 resource "azurerm_horizondb_firewall_rule" "import" {
   name              = azurerm_horizondb_firewall_rule.test.name
-  horizondb_pool_id = azurerm_horizondb_firewall_rule.test.horizondb_pool_id
+  horizondb_pool_id  = azurerm_horizondb_firewall_rule.test.horizondb_pool_id
   start_ip_address  = azurerm_horizondb_firewall_rule.test.start_ip_address
   end_ip_address    = azurerm_horizondb_firewall_rule.test.end_ip_address
 }

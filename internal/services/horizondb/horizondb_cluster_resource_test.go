@@ -25,7 +25,7 @@ func TestAccHorizondbCluster_basic(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -34,7 +34,7 @@ func TestAccHorizondbCluster_complete(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.complete(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -52,11 +52,27 @@ func TestAccHorizondbCluster_update(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.settings(data, 7, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.complete(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
+	})
+}
+
+func TestAccHorizondbCluster_authentication(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
+	r := HorizondbClusterResource{}
+	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
+		{
+			Config: r.withAdministratorPassword(data, "P@ssword-123!"),
+			Check:  check.That(data.ResourceName).ExistsInAzure(r),
+		},
+		data.ImportStep("administrator_login", "administrator_password"),
+		{
+			Config: r.withAdministratorPassword(data, "P@ssword-456!"),
+			Check:  check.That(data.ResourceName).ExistsInAzure(r),
+		},
 	})
 }
 
@@ -72,12 +88,14 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name          = azurerm_resource_group.test.name
   location                     = azurerm_resource_group.test.location
   postgresql_version           = "18"
+  administrator_login          = "acctestadmin"
+  administrator_password       = "P@ssword-123!"
   geo_redundant_backup_enabled = true
 }
 `, r.template(data), data.RandomInteger),
 			Check: check.That(data.ResourceName).ExistsInAzure(r),
 		},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -87,7 +105,7 @@ func TestAccHorizondbCluster_restore(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.restore(data, ""), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -98,7 +116,7 @@ func TestAccHorizondbCluster_restoreCrossRegion(t *testing.T) {
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.restore(data, os.Getenv("ARM_TEST_HORIZONDB_SOURCE_LOCATION")), Check: check.That(data.ResourceName).ExistsInAzure(r)},
 		// The API does not return the requested timestamp for cross-region restores.
-		data.ImportStep("restore.0.point_in_time_utc"),
+		data.ImportStep("administrator_login", "administrator_password", "restore.0.point_in_time_utc"),
 	})
 }
 
@@ -108,11 +126,11 @@ func TestAccHorizondbCluster_customerManagedKey(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{Config: r.customerManagedKey(data, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.customerManagedKey(data, true), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.customerManagedKey(data, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -173,15 +191,13 @@ func TestAccHorizondbCluster_pool(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
 		{Config: r.withPool(data, "primary", 1, "Disabled", 4), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.withPool(data, "primary", 2, "ZoneRedundant", 8), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
-		{Config: r.withPool(data, "primary", 1, "Disabled", 4), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.withPool(data, "replacement", 1, "Disabled", 4), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep(),
+		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
 
@@ -194,22 +210,19 @@ func TestAccHorizondbCluster_poolRenameRejected(t *testing.T) {
 	})
 }
 
-func TestAccHorizondbCluster_poolInvalidHighAvailability(t *testing.T) {
+func TestAccHorizondbCluster_poolValidation(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
 	r := HorizondbClusterResource{}
-	data.ResourceTest(t, r, []acceptance.TestStep{{
-		Config:      r.withPool(data, "primary", 1, "ZoneRedundant", 4),
-		ExpectError: regexp.MustCompile("`pool.high_availability_mode` must be `Disabled`"),
-	}})
-}
-
-func TestAccHorizondbCluster_poolNameCollision(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
-	r := HorizondbClusterResource{}
-	data.ResourceTest(t, r, []acceptance.TestStep{{
-		Config:      r.withPool(data, fmt.Sprintf("acctest-horizondb-%d", data.RandomInteger), 1, "Disabled", 4),
-		ExpectError: regexp.MustCompile("`pool.name` must differ"),
-	}})
+	data.ResourceTest(t, r, []acceptance.TestStep{
+		{
+			Config:      r.withPool(data, "primary", 1, "ZoneRedundant", 4),
+			ExpectError: regexp.MustCompile("`pool.high_availability_mode` must be `Disabled`"),
+		},
+		{
+			Config:      r.withPool(data, fmt.Sprintf("acctest-horizondb-%d", data.RandomInteger), 1, "Disabled", 4),
+			ExpectError: regexp.MustCompile("`pool.name` must differ"),
+		},
+	})
 }
 
 func (HorizondbClusterResource) preCheck(t *testing.T, variables ...string) {
@@ -254,8 +267,24 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name = azurerm_resource_group.test.name
   location            = azurerm_resource_group.test.location
   postgresql_version  = "18"
+  administrator_login = "acctestadmin"
+  administrator_password = "P@ssword-123!"
 }
 `, r.template(data), data.RandomInteger)
+}
+
+func (r HorizondbClusterResource) withAdministratorPassword(data acceptance.TestData, password string) string {
+	return fmt.Sprintf(`
+%s
+resource "azurerm_horizondb_cluster" "test" {
+  name                   = "acctest-horizondb-%d"
+  resource_group_name    = azurerm_resource_group.test.name
+  location               = azurerm_resource_group.test.location
+  postgresql_version     = "18"
+  administrator_login    = "acctestadmin"
+  administrator_password = %q
+}
+`, r.template(data), data.RandomInteger, password)
 }
 
 func (r HorizondbClusterResource) withPool(data acceptance.TestData, name string, nodes int, mode string, cores int) string {
@@ -266,6 +295,8 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name = azurerm_resource_group.test.name
   location            = azurerm_resource_group.test.location
   postgresql_version  = "18"
+  administrator_login = "acctestadmin"
+  administrator_password = "P@ssword-123!"
 
   pool {
     name                        = %q
@@ -290,7 +321,7 @@ func (r HorizondbClusterResource) complete(data acceptance.TestData) string {
 	return r.settings(data, 14, true)
 }
 
-func (r HorizondbClusterResource) settings(data acceptance.TestData, retention int, enabled bool) string {
+func (r HorizondbClusterResource) settings(data acceptance.TestData, retention int, publicNetworkAccessEnabled bool) string {
 	return fmt.Sprintf(`
 %s
 resource "azurerm_horizondb_cluster" "test" {
@@ -298,7 +329,8 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name           = azurerm_resource_group.test.name
   location                      = azurerm_resource_group.test.location
   postgresql_version            = "18"
-  ai_model_management_enabled   = %t
+  administrator_login           = "acctestadmin"
+  administrator_password        = "P@ssword-123!"
   backup_retention_days         = %d
   public_network_access_enabled = %t
   tags = {
@@ -306,7 +338,7 @@ resource "azurerm_horizondb_cluster" "test" {
     retention   = "%d"
   }
 }
-`, r.template(data), data.RandomInteger, enabled, retention, enabled, retention)
+`, r.template(data), data.RandomInteger, retention, publicNetworkAccessEnabled, retention)
 }
 
 func (r HorizondbClusterResource) requiresImport(data acceptance.TestData) string {
@@ -317,6 +349,8 @@ resource "azurerm_horizondb_cluster" "import" {
   resource_group_name = azurerm_horizondb_cluster.test.resource_group_name
   location            = azurerm_horizondb_cluster.test.location
   postgresql_version  = azurerm_horizondb_cluster.test.postgresql_version
+  administrator_login = "acctestadmin"
+  administrator_password = "P@ssword-123!"
 }
 `, r.basic(data))
 }
@@ -333,6 +367,8 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name = azurerm_resource_group.test.name
   location            = azurerm_resource_group.test.location
   create_mode         = "PointInTimeRestore"
+  administrator_login = "acctestadmin"
+  administrator_password = "P@ssword-123!"
 
   restore {
     source_horizondb_cluster_id = %q
@@ -355,6 +391,8 @@ resource "azurerm_horizondb_cluster" "test" {
   resource_group_name           = azurerm_resource_group.test.name
   location                      = azurerm_resource_group.test.location
   postgresql_version            = "18"
+  administrator_login           = "acctestadmin"
+  administrator_password        = "P@ssword-123!"
   backup_retention_days         = %d
   public_network_access_enabled = %t
 
