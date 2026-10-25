@@ -35,6 +35,7 @@ resource "azurerm_horizondb_cluster" "example" {
     high_availability_mode = "Disabled"
 
     compute {
+      type       = "Provisioned"
       processor  = "AMD"
       generation = 1
       vcores     = 4
@@ -110,6 +111,8 @@ A `compute` block supports the following:
 * `vcores` - (Required) The provisioned compute capacity in vCores.
 
 ~> **Note:** The number of vCores must be between `2` and `192`. Azure validates the supported combinations of processor, generation, and capacity.
+
+* `type` - (Optional) The compute model type. The only possible value is `Provisioned`. Defaults to `Provisioned`.
 
 ---
 

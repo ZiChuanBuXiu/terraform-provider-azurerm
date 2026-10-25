@@ -31,6 +31,7 @@ type HorizondbClusterPool struct {
 }
 
 type HorizondbClusterPoolCompute struct {
+	Type       string `tfschema:"type"`
 	Processor  string `tfschema:"processor"`
 	Generation int64  `tfschema:"generation"`
 	VCores     int64  `tfschema:"vcores"`
@@ -57,6 +58,12 @@ func horizondbClusterPoolSchema() *pluginsdk.Schema {
 				MinItems: 1,
 				MaxItems: 1,
 				Elem: &pluginsdk.Resource{Schema: map[string]*pluginsdk.Schema{
+					"type": {
+						Type:         pluginsdk.TypeString,
+						Optional:     true,
+						Default:      string(pools.PoolComputeModelTypeProvisioned),
+						ValidateFunc: validation.StringInSlice(pools.PossibleValuesForPoolComputeModelType(), false),
+					},
 					"processor": {
 						Type: pluginsdk.TypeString, Required: true,
 						ValidateFunc: validation.StringInSlice(pools.PossibleValuesForComputeProcessorType(), false),
@@ -167,6 +174,7 @@ func flattenHorizondbClusterPool(clusterId clusters.ClusterId, model *pools.Pool
 		Name: id.PoolName, Id: id.ID(), NodeCount: props.NodeCount,
 		HighAvailabilityMode: string(props.HighAvailability.Mode),
 		Compute: []HorizondbClusterPoolCompute{{
+			Type:      string(props.ComputeModel.Type),
 			Processor: string(props.ComputeModel.ComputeProcessor), Generation: props.ComputeModel.ComputeGeneration,
 			VCores: props.ComputeModel.VCores,
 		}},
@@ -251,8 +259,8 @@ func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMet
 
 func expandHorizondbClusterPoolCompute(input HorizondbClusterPoolCompute) pools.PoolComputeModel {
 	return pools.PoolComputeModel{
-		Type: pools.PoolComputeModelTypeProvisioned, 
-		ComputeProcessor: pools.ComputeProcessorType(input.Processor),
+		Type:              pools.PoolComputeModelType(input.Type),
+		ComputeProcessor:  pools.ComputeProcessorType(input.Processor),
 		ComputeGeneration: input.Generation, VCores: input.VCores,
 	}
 }
