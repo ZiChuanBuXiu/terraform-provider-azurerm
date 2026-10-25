@@ -231,6 +231,8 @@ func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMet
 	}
 	state := desired[0]
 	if existing == nil {
+		// When creating a new pool, we need to fetch the default parameter group to include it in the creation payload.
+		// This will be removed once the parameter group property is changed to be optional in pool creation API payload.
 		groupId, err := defaultHorizondbClusterPoolParameterGroup(ctx, metadata, clusterId)
 		if err != nil {
 			return err
@@ -283,6 +285,8 @@ func expandHorizondbClusterPoolUpdate(state HorizondbClusterPool) pools.PoolForP
 }
 
 func defaultHorizondbClusterPoolParameterGroup(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId) (string, error) {
+	// Restored clusters inherit their PostgreSQL version, so it may not be available in configuration.
+	// Get the cluster to determine its PostgreSQL version and location to construct the default parameter group ID.
 	cluster, err := metadata.Client.HorizonDB.ClustersClient.Get(ctx, id)
 	if err != nil {
 		return "", fmt.Errorf("retrieving %s: %+v", id, err)
@@ -293,42 +297,10 @@ func defaultHorizondbClusterPoolParameterGroup(ctx context.Context, metadata sdk
 	if cluster.Model.Location == "" {
 		return "", fmt.Errorf("retrieving %s: location is missing", id)
 	}
-	locationId := defaultparametergroups.NewLocationID(id.SubscriptionId, location.Normalize(cluster.Model.Location))
-	result, err := metadata.Client.HorizonDB.DefaultParameterGroupsClient.ListBySubscriptionAndRegionComplete(ctx, locationId)
-	if err != nil {
-		return "", fmt.Errorf("listing default parameter groups for %s: %+v", id, err)
-	}
-	group, err := findHorizondbDefaultParameterGroup(result.Items, string(*cluster.Model.Properties.PostgreSqlVersion))
-	if err != nil {
-		return "", err
-	}
-	groupId, err := defaultparametergroups.ParseParameterGroupIDInsensitively(pointer.From(group.Id))
-	if err != nil {
-		return "", err
-	}
-	if !strings.EqualFold(groupId.SubscriptionId, id.SubscriptionId) || location.Normalize(groupId.LocationName) != locationId.LocationName {
-		return "", fmt.Errorf("default parameter group %q does not match the cluster subscription and location", groupId.ID())
-	}
+	groupId := defaultparametergroups.NewParameterGroupID(
+		id.SubscriptionId,
+		location.Normalize(cluster.Model.Location),
+		fmt.Sprintf("default_pg%s", *cluster.Model.Properties.PostgreSqlVersion),
+	)
 	return groupId.ID(), nil
-}
-
-func findHorizondbDefaultParameterGroup(groups []defaultparametergroups.DefaultParameterGroup, version string) (*defaultparametergroups.DefaultParameterGroup, error) {
-	var result *defaultparametergroups.DefaultParameterGroup
-	for index := range groups {
-		group := &groups[index]
-		if group.Properties == nil {
-			return nil, errors.New("default parameter group response has no properties")
-		}
-		if string(group.Properties.PostgreSqlVersion) != version {
-			continue
-		}
-		if result != nil {
-			return nil, fmt.Errorf("multiple default parameter groups found for PostgreSQL version `%s`", version)
-		}
-		result = group
-	}
-	if result == nil {
-		return nil, fmt.Errorf("no default parameter group found for PostgreSQL version `%s`", version)
-	}
-	return result, nil
 }

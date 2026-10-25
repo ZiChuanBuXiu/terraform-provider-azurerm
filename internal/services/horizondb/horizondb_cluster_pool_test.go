@@ -4,17 +4,66 @@
 package horizondb
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/clusters"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/pools"
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
+	horizondbclient "github.com/hashicorp/terraform-provider-azurerm/internal/services/horizondb/client"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDefaultHorizondbClusterPoolParameterGroup(t *testing.T) {
+	id := clusters.NewClusterID("00000000-0000-0000-0000-000000000000", "test", "cluster")
+	for _, version := range []string{"17", "18"} {
+		t.Run(version, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.Method != http.MethodGet || req.URL.Path != id.ID() {
+					t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				err := json.NewEncoder(w).Encode(clusters.Cluster{
+					Location: "East US 2",
+					Properties: &clusters.ClusterProperties{
+						PostgreSqlVersion: pointer.To(clusters.PostgreSqlVersion(version)),
+					},
+				})
+				if err != nil {
+					t.Errorf("encoding cluster response: %v", err)
+				}
+			}))
+			defer server.Close()
+
+			client, err := clusters.NewClustersClientWithBaseURI(environments.ResourceManagerAPI(server.URL))
+			require.NoError(t, err)
+			client.Client.AuthorizeRequest = nil
+			client.Client.DisableRetries = true
+			metadata := sdk.ResourceMetaData{
+				Client: &clients.Client{
+					HorizonDB: &horizondbclient.Client{ClustersClient: client},
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+			defer cancel()
+			groupId, err := defaultHorizondbClusterPoolParameterGroup(ctx, metadata, id)
+			require.NoError(t, err)
+			require.Equal(t, "/subscriptions/"+id.SubscriptionId+"/providers/Microsoft.HorizonDb/locations/eastus2/parameterGroups/default_pg"+version, groupId)
+		})
+	}
+}
 
 func TestHorizondbClusterPoolComputeType_Schema(t *testing.T) {
 	poolSchema := horizondbClusterPoolSchema()
