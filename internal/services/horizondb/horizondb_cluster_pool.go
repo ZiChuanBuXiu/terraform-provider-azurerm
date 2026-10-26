@@ -11,9 +11,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/clusters"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/defaultparametergroups"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/pools"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/locks"
@@ -231,19 +229,10 @@ func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMet
 	}
 	state := desired[0]
 	if existing == nil {
-		// When creating a new pool, we need to fetch the default parameter group to include it in the creation payload.
-		// This will be removed once the parameter group property is changed to be optional in pool creation API payload.
-		groupId, err := defaultHorizondbClusterPoolParameterGroup(ctx, metadata, clusterId)
-		if err != nil {
-			return err
-		}
 		payload := pools.Pool{
 			Properties: &pools.PoolProperties{
 				ComputeModel: expandHorizondbClusterPoolCompute(state.Compute[0]),
 				NodeCount:    state.NodeCount, HighAvailability: pools.PoolHighAvailability{Mode: pools.PoolHighAvailabilityMode(state.HighAvailabilityMode)},
-				ParameterGroup: pools.PoolParameterGroupReference{
-					ParameterGroupResourceId: groupId, ApplyMethod: pools.ParameterApplyMethodImmediate,
-				},
 				ScheduledMaintenance: pools.SystemScheduledMaintenanceProperties{},
 			},
 		}
@@ -282,25 +271,4 @@ func expandHorizondbClusterPoolUpdate(state HorizondbClusterPool) pools.PoolForP
 			},
 		},
 	}
-}
-
-func defaultHorizondbClusterPoolParameterGroup(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId) (string, error) {
-	// Restored clusters inherit their PostgreSQL version, so it may not be available in configuration.
-	// Get the cluster to determine its PostgreSQL version and location to construct the default parameter group ID.
-	cluster, err := metadata.Client.HorizonDB.ClustersClient.Get(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("retrieving %s: %+v", id, err)
-	}
-	if cluster.Model == nil || cluster.Model.Properties == nil || pointer.From(cluster.Model.Properties.PostgreSqlVersion) == "" {
-		return "", fmt.Errorf("retrieving %s: PostgreSQL version is missing", id)
-	}
-	if cluster.Model.Location == "" {
-		return "", fmt.Errorf("retrieving %s: location is missing", id)
-	}
-	groupId := defaultparametergroups.NewParameterGroupID(
-		id.SubscriptionId,
-		location.Normalize(cluster.Model.Location),
-		fmt.Sprintf("default_pg%s", *cluster.Model.Properties.PostgreSqlVersion),
-	)
-	return groupId.ID(), nil
 }

@@ -12,7 +12,7 @@ type PoolProperties struct {
 	ComputeModel         PoolComputeModel               `json:"computeModel"`
 	HighAvailability     PoolHighAvailability           `json:"highAvailability"`
 	NodeCount            int64                          `json:"nodeCount"`
-	ParameterGroup       PoolParameterGroupReference    `json:"parameterGroup"`
+	ParameterGroup       *PoolParameterGroupReference   `json:"parameterGroup,omitempty"`
 	ProvisioningState    *ProvisioningState             `json:"provisioningState,omitempty"`
 	ScheduledMaintenance ScheduledMaintenanceProperties `json:"scheduledMaintenance"`
 	State                *PoolState                     `json:"state,omitempty"`
@@ -22,12 +22,12 @@ var _ json.Unmarshaler = &PoolProperties{}
 
 func (s *PoolProperties) UnmarshalJSON(bytes []byte) error {
 	var decoded struct {
-		ComputeModel      PoolComputeModel            `json:"computeModel"`
-		HighAvailability  PoolHighAvailability        `json:"highAvailability"`
-		NodeCount         int64                       `json:"nodeCount"`
-		ParameterGroup    PoolParameterGroupReference `json:"parameterGroup"`
-		ProvisioningState *ProvisioningState          `json:"provisioningState,omitempty"`
-		State             *PoolState                  `json:"state,omitempty"`
+		ComputeModel      PoolComputeModel             `json:"computeModel"`
+		HighAvailability  PoolHighAvailability         `json:"highAvailability"`
+		NodeCount         int64                        `json:"nodeCount"`
+		ParameterGroup    *PoolParameterGroupReference `json:"parameterGroup,omitempty"`
+		ProvisioningState *ProvisioningState           `json:"provisioningState,omitempty"`
+		State             *PoolState                   `json:"state,omitempty"`
 	}
 	if err := json.Unmarshal(bytes, &decoded); err != nil {
 		return fmt.Errorf("unmarshaling: %+v", err)
