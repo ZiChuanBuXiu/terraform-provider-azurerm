@@ -489,20 +489,31 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 	}
 	state.Identity = pointer.From(flattenedIdentity)
 	if pointer.From(props.CreationMode) == clusters.ClusterCreateModePointInTimeRestore {
-		sourceId, err := clusters.ParseClusterIDInsensitively(pointer.From(props.CreationSourceClusterResourceId))
-		if err != nil {
-			return err
-		}
 		restore := HorizondbClusterRestore{
-			SourceHorizondbClusterId: sourceId.ID(),
+			SourceHorizondbClusterId: pointer.From(props.CreationSourceClusterResourceId),
 			SourceLocation:           location.Normalize(pointer.From(props.CreationSourceClusterLocation)),
 			PointInTimeUtc:           pointer.From(props.PointInTimeUtc),
 		}
-		// Cross-region restores do not return the requested timestamp.
-		if props.PointInTimeUtc == nil && len(previous.Restore) > 0 {
-			restore.PointInTimeUtc = previous.Restore[0].PointInTimeUtc
+		// Azure can omit creation-time restore metadata from GET responses.
+		if len(previous.Restore) > 0 {
+			if restore.SourceHorizondbClusterId == "" {
+				restore.SourceHorizondbClusterId = previous.Restore[0].SourceHorizondbClusterId
+			}
+			if restore.SourceLocation == "" {
+				restore.SourceLocation = location.Normalize(previous.Restore[0].SourceLocation)
+			}
+			if restore.PointInTimeUtc == "" {
+				restore.PointInTimeUtc = previous.Restore[0].PointInTimeUtc
+			}
 		}
-		state.Restore = []HorizondbClusterRestore{restore}
+		if restore.SourceHorizondbClusterId != "" || len(previous.Restore) > 0 {
+			sourceId, err := clusters.ParseClusterIDInsensitively(restore.SourceHorizondbClusterId)
+			if err != nil {
+				return err
+			}
+			restore.SourceHorizondbClusterId = sourceId.ID()
+			state.Restore = []HorizondbClusterRestore{restore}
+		}
 	}
 	state.Pool, err = flattenHorizondbClusterPool(*id, pool)
 	if err != nil {

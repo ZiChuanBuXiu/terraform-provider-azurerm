@@ -112,7 +112,8 @@ func TestAccHorizondbCluster_restore(t *testing.T) {
 			Config: r.restore(data, false),
 			Check:  check.That("azurerm_horizondb_cluster.restored").ExistsInAzure(r),
 		},
-		data.ImportStepFor("azurerm_horizondb_cluster.restored", "administrator_login", "administrator_password"),
+		// Azure can omit creation-time restore metadata from GET responses.
+		data.ImportStepFor("azurerm_horizondb_cluster.restored", "administrator_login", "administrator_password", "restore"),
 	})
 }
 
@@ -136,8 +137,8 @@ func TestAccHorizondbCluster_restoreCrossRegion(t *testing.T) {
 			Config: r.restore(data, true),
 			Check:  check.That("azurerm_horizondb_cluster.restored").ExistsInAzure(r),
 		},
-		// The API does not return the requested timestamp for cross-region restores.
-		data.ImportStepFor("azurerm_horizondb_cluster.restored", "administrator_login", "administrator_password", "restore.0.point_in_time_utc"),
+		// Azure can omit creation-time restore metadata from GET responses.
+		data.ImportStepFor("azurerm_horizondb_cluster.restored", "administrator_login", "administrator_password", "restore"),
 	})
 }
 

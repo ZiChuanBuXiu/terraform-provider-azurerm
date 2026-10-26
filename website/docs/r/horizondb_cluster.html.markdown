@@ -90,6 +90,8 @@ The following arguments are supported:
 
 ~> **Note:** This block is required when `create_mode` is `PointInTimeRestore` and must be omitted when `create_mode` is `Create`.
 
+-> **Note:** HorizonDB can omit restore-source details and the restore timestamp from API responses. This resource preserves the existing `restore` values in Terraform state when those details are not returned.
+
 * `tags` - (Optional) A mapping of tags to assign to the resource.
 
 ---
@@ -185,7 +187,7 @@ A HorizonDB Cluster can be imported using the `resource id`, e.g.
 terraform import azurerm_horizondb_cluster.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/resourceGroup1/providers/Microsoft.HorizonDb/clusters/cluster1
 ```
 
-~> **Note:** HorizonDB does not return the original `point_in_time_utc` for cross-region restores. Import cannot recover that value. When managing an imported cross-region restore, specify the original restore configuration and use `lifecycle.ignore_changes` for `restore[0].point_in_time_utc` to avoid replacement caused solely by the missing timestamp.
+~> **Note:** HorizonDB can omit the original restore-source details and timestamp from API responses, so import cannot always recover the `restore` block. When managing an imported restored Cluster, specify the original restore configuration and use `lifecycle.ignore_changes` for `restore` to avoid replacement caused solely by missing restore metadata.
 
 ## API Providers
 <!-- This section is generated, changes will be overwritten -->
