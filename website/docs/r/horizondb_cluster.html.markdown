@@ -78,7 +78,7 @@ The following arguments are supported:
 
 * `geo_redundant_backup_enabled` - (Optional) Is geo-redundant backup enabled? Defaults to `false`. Changing this forces a new resource to be created.
 
-* `identity` - (Optional) An `identity` block as defined below. Changing this forces a new resource to be created.
+* `identity` - (Optional) An `identity` block as defined below.
 
 * `postgresql_version` - (Optional) The PostgreSQL major version. Possible values are `17` and `18`. Changing this forces a new resource to be created.
 
@@ -118,7 +118,7 @@ An `identity` block supports the following:
 
 * `identity_ids` - (Required) A set of User Assigned Identity IDs assigned to the Cluster.
 
-~> **Note:** Changing the set of assigned identities forces a new resource to be created.
+-> **Note:** Identity updates replace the complete set of assigned identities in place. Removing the `identity` block clears all assignments.
 
 ---
 

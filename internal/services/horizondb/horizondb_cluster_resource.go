@@ -118,8 +118,7 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			ForceNew: true,
 			Default:  false,
 		},
-		// The SDK identity map cannot encode null entries for individual PATCH removals.
-		"identity": commonschema.UserAssignedIdentityOptionalForceNew(),
+		"identity": commonschema.UserAssignedIdentityOptional(),
 		"postgresql_version": {
 			Type:         pluginsdk.TypeString,
 			Optional:     true,
@@ -179,7 +178,7 @@ func (HorizondbClusterResource) CustomizeDiff() sdk.ResourceFunc {
 			if err := validateHorizondbClusterPoolConfig(diff.GetRawConfig()); err != nil {
 				return err
 			}
-			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "create_mode", "postgresql_version", "restore", "identity", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
+			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "create_mode", "postgresql_version", "restore", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
 				old, new := diff.GetChange("pool.0.name")
 				if err := validateHorizondbClusterPoolRename(old.(string), new.(string)); err != nil {
 					return err
@@ -311,6 +310,11 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 			if err != nil {
 				return err
 			}
+			if metadata.ResourceData.HasChange("identity") {
+				if err := updateHorizondbClusterIdentity(ctx, metadata.Client.HorizonDB.ClustersClient, *id, state); err != nil {
+					return fmt.Errorf("updating identity for %s: %+v", id, err)
+				}
+			}
 			for _, payload := range expandHorizondbClusterUpdates(state, metadata.ResourceData.HasChange, retention) {
 				if err := metadata.Client.HorizonDB.ClustersClient.UpdateThenPoll(ctx, *id, payload); err != nil {
 					return fmt.Errorf("updating %s: %+v", id, err)
@@ -335,6 +339,18 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 			return nil
 		},
 	}
+}
+
+func updateHorizondbClusterIdentity(ctx context.Context, clustersClient *clusters.ClustersClient, id clusters.ClusterId, state HorizondbClusterResourceModel) error {
+	expanded, err := identity.ExpandUserAssignedMapFromModel(state.Identity)
+	if err != nil {
+		return fmt.Errorf("expanding `identity`: %+v", err)
+	}
+	payload := clusters.Cluster{
+		Location: location.Normalize(state.Location),
+		Identity: expanded,
+	}
+	return clustersClient.CreateOrReplaceThenPoll(ctx, id, payload)
 }
 
 func (HorizondbClusterResource) Delete() sdk.ResourceFunc {

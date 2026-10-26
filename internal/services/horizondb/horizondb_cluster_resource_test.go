@@ -5,16 +5,12 @@ package horizondb_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"regexp"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/clusters"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/passwordauthentications"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/pools"
 	"github.com/hashicorp/go-azure-sdk/sdk/client/pollers"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -147,25 +143,35 @@ func TestAccHorizondbCluster_identity(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.identity(data, false),
+			Config: r.identity(data, 0),
 			Check:  check.That(data.ResourceName).ExistsInAzure(r),
 		},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
-			Config: r.identity(data, true),
+			Config: r.identity(data, 2),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
 				},
 			},
 			Check: check.That(data.ResourceName).ExistsInAzure(r),
 		},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
-			Config: r.identity(data, false),
+			Config: r.identity(data, 1),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
+				},
+			},
+			Check: check.That(data.ResourceName).ExistsInAzure(r),
+		},
+		data.ImportStep("administrator_login", "administrator_password"),
+		{
+			Config: r.identity(data, 0),
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
 				},
 			},
 			Check: check.That(data.ResourceName).ExistsInAzure(r),
@@ -270,34 +276,6 @@ resource "azurerm_horizondb_cluster" "test" {
 
 }
 `, r.templateWithFeatures(data, features), data.RandomInteger, name, nodes, mode, cores)
-}
-
-func (r HorizondbClusterResource) withPoolComputeType(data acceptance.TestData) string {
-	return fmt.Sprintf(`
-%s
-
-resource "azurerm_horizondb_cluster" "test" {
-  name                   = "acctest-horizondb-%d"
-  resource_group_name    = azurerm_resource_group.test.name
-  location               = azurerm_resource_group.test.location
-  postgresql_version     = "18"
-  administrator_login    = "acctestadmin"
-  administrator_password = "P@ssword-123!"
-
-  pool {
-    name                   = "primary"
-    node_count             = 1
-    high_availability_mode = "Disabled"
-
-    compute {
-      type       = "Provisioned"
-      processor  = "AMD"
-      generation = 1
-      vcores     = 4
-    }
-  }
-}
-`, r.template(data), data.RandomInteger)
 }
 
 func (r HorizondbClusterResource) complete(data acceptance.TestData) string {
@@ -495,15 +473,15 @@ resource "azurerm_user_assigned_identity" "test" {
 `, r.template(data), data.RandomInteger)
 }
 
-func (r HorizondbClusterResource) identity(data acceptance.TestData, enabled bool) string {
+func (r HorizondbClusterResource) identity(data acceptance.TestData, count int) string {
 	identity := ""
-	if enabled {
-		identity = `
+	if count > 0 {
+		identity = fmt.Sprintf(`
 identity {
   type         = "UserAssigned"
-  identity_ids = azurerm_user_assigned_identity.test[*].id
+  identity_ids = slice(azurerm_user_assigned_identity.test[*].id, 0, %d)
 }
-`
+`, count)
 	}
 	return fmt.Sprintf(`
 %s
@@ -519,8 +497,12 @@ resource "azurerm_horizondb_cluster" "test" {
   %s
 
   %s
+
+  tags = {
+    identity_count = "%d"
+  }
 }
-`, r.identityTemplate(data), data.RandomInteger, identity, r.pool())
+`, r.identityTemplate(data), data.RandomInteger, identity, r.pool(), count)
 }
 
 func (r HorizondbClusterResource) overwritePrerequisites(data acceptance.TestData) string {
@@ -548,37 +530,4 @@ resource "azurerm_horizondb_cluster" "source" {
   }
 }
 `, r.templateWithFeatures(data, "skip_import_check_on_create_and_allow_overwriting_existing_resources = true"), data.RandomInteger)
-}
-
-func (r HorizondbClusterResource) overwriteExisting(data acceptance.TestData) string {
-	return fmt.Sprintf(`
-%s
-
-resource "azurerm_horizondb_cluster" "test" {
-  name                          = "acctest-horizondb-%d"
-  resource_group_name           = azurerm_resource_group.test.name
-  location                      = azurerm_resource_group.test.location
-  postgresql_version            = "18"
-  administrator_login           = "acctestadmin"
-  administrator_password        = "P@ssword-456!"
-  backup_retention_days         = 14
-  public_network_access_enabled = false
-
-  pool {
-    name                   = "primary"
-    node_count             = 1
-    high_availability_mode = "Disabled"
-
-    compute {
-      processor  = "AMD"
-      generation = 1
-      vcores     = 8
-    }
-  }
-
-  tags = {
-    environment = "overwritten"
-  }
-}
-`, r.overwritePrerequisites(data), data.RandomInteger)
 }
