@@ -8,12 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
-	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
@@ -31,27 +29,21 @@ import (
 type HorizondbClusterResource struct{}
 
 type HorizondbClusterResourceModel struct {
-	Name                       string                               `tfschema:"name"`
-	ResourceGroupName          string                               `tfschema:"resource_group_name"`
-	Location                   string                               `tfschema:"location"`
-	PostgresqlVersion          string                               `tfschema:"postgresql_version"`
-	Pool                       []HorizondbClusterPool               `tfschema:"pool"`
-	AdministratorLogin         string                               `tfschema:"administrator_login"`
-	AdministratorPassword      string                               `tfschema:"administrator_password"`
-	BackupRetentionDays        int64                                `tfschema:"backup_retention_days"`
-	CreateMode                 string                               `tfschema:"create_mode"`
-	CustomerManagedKey         []HorizondbClusterCustomerManagedKey `tfschema:"customer_managed_key"`
-	GeoRedundantBackupEnabled  bool                                 `tfschema:"geo_redundant_backup_enabled"`
-	Identity                   []identity.ModelUserAssigned         `tfschema:"identity"`
-	PublicNetworkAccessEnabled bool                                 `tfschema:"public_network_access_enabled"`
-	Restore                    []HorizondbClusterRestore            `tfschema:"restore"`
-	Tags                       map[string]string                    `tfschema:"tags"`
-	EarliestRestorePointUtc    string                               `tfschema:"earliest_restore_point_utc"`
-}
-
-type HorizondbClusterCustomerManagedKey struct {
-	KeyVaultKeyId          string `tfschema:"key_vault_key_id"`
-	UserAssignedIdentityId string `tfschema:"user_assigned_identity_id"`
+	Name                       string                       `tfschema:"name"`
+	ResourceGroupName          string                       `tfschema:"resource_group_name"`
+	Location                   string                       `tfschema:"location"`
+	PostgresqlVersion          string                       `tfschema:"postgresql_version"`
+	Pool                       []HorizondbClusterPool       `tfschema:"pool"`
+	AdministratorLogin         string                       `tfschema:"administrator_login"`
+	AdministratorPassword      string                       `tfschema:"administrator_password"`
+	BackupRetentionDays        int64                        `tfschema:"backup_retention_days"`
+	CreateMode                 string                       `tfschema:"create_mode"`
+	GeoRedundantBackupEnabled  bool                         `tfschema:"geo_redundant_backup_enabled"`
+	Identity                   []identity.ModelUserAssigned `tfschema:"identity"`
+	PublicNetworkAccessEnabled bool                         `tfschema:"public_network_access_enabled"`
+	Restore                    []HorizondbClusterRestore    `tfschema:"restore"`
+	Tags                       map[string]string            `tfschema:"tags"`
+	EarliestRestorePointUtc    string                       `tfschema:"earliest_restore_point_utc"`
 }
 
 type HorizondbClusterRestore struct {
@@ -120,24 +112,6 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			Default:      string(clusters.ClusterCreateModeCreate),
 			ValidateFunc: validation.StringInSlice(clusters.PossibleValuesForClusterCreateMode(), false),
 		},
-		"customer_managed_key": {
-			Type:     pluginsdk.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &pluginsdk.Resource{
-				Schema: map[string]*pluginsdk.Schema{
-					"key_vault_key_id": {
-						Type:     pluginsdk.TypeString,
-						Required: true,
-						ValidateFunc: validation.StringMatch(
-							regexp.MustCompile(`^https://[A-Za-z0-9-]+[.]vault([.]azure[.]net|[.]usgovcloudapi[.]net|[.]azure[.]cn)/keys/[A-Za-z0-9-]+/?$`),
-							"must be a versionless HTTPS Azure Key Vault key URI",
-						),
-					},
-					"user_assigned_identity_id": commonschema.ResourceIDReferenceRequired(&commonids.UserAssignedIdentityId{}),
-				},
-			},
-		},
 		"geo_redundant_backup_enabled": {
 			Type:     pluginsdk.TypeBool,
 			Optional: true,
@@ -205,12 +179,6 @@ func (HorizondbClusterResource) CustomizeDiff() sdk.ResourceFunc {
 			if err := validateHorizondbClusterPoolConfig(diff.GetRawConfig()); err != nil {
 				return err
 			}
-			if diff.Id() != "" && diff.NewValueKnown("customer_managed_key") {
-				old, new := diff.GetChange("customer_managed_key")
-				if len(old.([]interface{})) != len(new.([]interface{})) {
-					return diff.ForceNew("customer_managed_key")
-				}
-			}
 			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "create_mode", "postgresql_version", "restore", "identity", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
 				old, new := diff.GetChange("pool.0.name")
 				if err := validateHorizondbClusterPoolRename(old.(string), new.(string)); err != nil {
@@ -252,39 +220,7 @@ func validateHorizondbClusterConfig(config cty.Value) error {
 			}
 		}
 	}
-	cmk := config.GetAttr("customer_managed_key")
-	if !cmk.IsKnown() || cmk.IsNull() || cmk.LengthInt() == 0 {
-		return nil
-	}
-	geoBackup := config.GetAttr("geo_redundant_backup_enabled")
-	if geoBackup.IsKnown() && !geoBackup.IsNull() && geoBackup.True() {
-		return errors.New("`geo_redundant_backup_enabled` cannot be true with `customer_managed_key`")
-	}
-	identities := config.GetAttr("identity")
-	if !identities.IsKnown() {
-		return nil
-	}
-	if identities.IsNull() || identities.LengthInt() == 0 {
-		return errors.New("`identity` is required with `customer_managed_key`")
-	}
-	key := cmk.AsValueSlice()[0]
-	assigned := identities.AsValueSlice()[0]
-	if !key.IsKnown() || key.IsNull() || !assigned.IsKnown() || assigned.IsNull() {
-		return nil
-	}
-	keyIdentity := key.GetAttr("user_assigned_identity_id")
-	identityIds := assigned.GetAttr("identity_ids")
-	if !keyIdentity.IsKnown() || keyIdentity.IsNull() || !identityIds.IsWhollyKnown() {
-		return nil
-	}
-	if !identityIds.IsNull() {
-		for _, id := range identityIds.AsValueSlice() {
-			if !id.IsNull() && strings.EqualFold(id.AsString(), keyIdentity.AsString()) {
-				return nil
-			}
-		}
-	}
-	return errors.New("`customer_managed_key.user_assigned_identity_id` must be included in `identity.identity_ids`")
+	return nil
 }
 
 func (r HorizondbClusterResource) Create() sdk.ResourceFunc {
@@ -472,14 +408,6 @@ func expandHorizondbCluster(state HorizondbClusterResourceModel, retention *int6
 		}
 		payload.Identity = expanded
 	}
-	if len(state.CustomerManagedKey) > 0 {
-		key := state.CustomerManagedKey[0]
-		payload.Properties.DataEncryption = &clusters.HorizonDbClusterDataEncryption{
-			Type:                          pointer.To(clusters.HorizonDbClusterDataEncryptionTypeAzureKeyVault),
-			PrimaryKeyUri:                 pointer.To(key.KeyVaultKeyId),
-			PrimaryUserAssignedIdentityId: pointer.To(key.UserAssignedIdentityId),
-		}
-	}
 	switch clusters.ClusterCreateMode(state.CreateMode) {
 	case clusters.ClusterCreateModeCreate:
 		if len(state.Restore) > 0 {
@@ -516,27 +444,10 @@ func expandHorizondbClusterUpdates(state HorizondbClusterResourceModel, hasChang
 	if hasChange("public_network_access_enabled") {
 		payload.Properties.Network = &clusters.NetworkForPatchUpdate{PublicAccess: pointer.To(horizondbPublicNetworkAccess(state.PublicNetworkAccessEnabled))}
 	}
-	updates := make([]clusters.ClusterForPatchUpdate, 0, 2)
-	if len(state.CustomerManagedKey) > 0 {
-		key := state.CustomerManagedKey[0]
-		keyChanged := hasChange("customer_managed_key.0.key_vault_key_id")
-		identityChanged := hasChange("customer_managed_key.0.user_assigned_identity_id")
-		if keyChanged {
-			payload.Properties.DataEncryption = &clusters.HorizonDbClusterDataEncryptionForPatchUpdate{PrimaryKeyUri: pointer.To(key.KeyVaultKeyId)}
-		}
-		if identityChanged {
-			if keyChanged {
-				// HorizonDB requires key and encryption-identity rotations to complete separately.
-				updates = append(updates, payload)
-				payload = clusters.ClusterForPatchUpdate{Properties: &clusters.ClusterPropertiesForPatchUpdate{}}
-			}
-			payload.Properties.DataEncryption = &clusters.HorizonDbClusterDataEncryptionForPatchUpdate{PrimaryUserAssignedIdentityId: pointer.To(key.UserAssignedIdentityId)}
-		}
+	if payload.Tags != nil || payload.Properties.Backup != nil || payload.Properties.Network != nil {
+		return []clusters.ClusterForPatchUpdate{payload}
 	}
-	if payload.Tags != nil || payload.Properties.Backup != nil || payload.Properties.Network != nil || payload.Properties.DataEncryption != nil {
-		updates = append(updates, payload)
-	}
-	return updates
+	return nil
 }
 
 func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clusters.ClusterId, model *clusters.Cluster, pool *pools.Pool) error {
@@ -577,25 +488,6 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 		return fmt.Errorf("flattening `identity`: %+v", err)
 	}
 	state.Identity = pointer.From(flattenedIdentity)
-	if encryption := props.DataEncryption; encryption != nil {
-		switch pointer.From(encryption.Type) {
-		case "", clusters.HorizonDbClusterDataEncryptionTypeSystemManaged:
-		case clusters.HorizonDbClusterDataEncryptionTypeAzureKeyVault:
-			if pointer.From(encryption.PrimaryKeyUri) == "" {
-				return fmt.Errorf("retrieving %s: customer-managed encryption key URI is missing", id)
-			}
-			identityId, err := commonids.ParseUserAssignedIdentityIDInsensitively(pointer.From(encryption.PrimaryUserAssignedIdentityId))
-			if err != nil {
-				return err
-			}
-			state.CustomerManagedKey = []HorizondbClusterCustomerManagedKey{{
-				KeyVaultKeyId:          pointer.From(encryption.PrimaryKeyUri),
-				UserAssignedIdentityId: identityId.ID(),
-			}}
-		default:
-			return fmt.Errorf("retrieving %s: unsupported encryption type %q", id, *encryption.Type)
-		}
-	}
 	if pointer.From(props.CreationMode) == clusters.ClusterCreateModePointInTimeRestore {
 		sourceId, err := clusters.ParseClusterIDInsensitively(pointer.From(props.CreationSourceClusterResourceId))
 		if err != nil {

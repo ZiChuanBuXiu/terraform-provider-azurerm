@@ -76,10 +76,6 @@ The following arguments are supported:
 
 * `create_mode` - (Optional) The creation mode of the HorizonDB Cluster. Possible values are `Create` and `PointInTimeRestore`. Defaults to `Create`. Changing this forces a new resource to be created.
 
-* `customer_managed_key` - (Optional) A `customer_managed_key` block as defined below.
-
-~> **Note:** Adding or removing this block forces a new resource to be created. Updating a key or encryption identity within the block does not force replacement. Customer-managed encryption requires an `identity` block and cannot be used when `geo_redundant_backup_enabled` is `true`.
-
 * `geo_redundant_backup_enabled` - (Optional) Is geo-redundant backup enabled? Defaults to `false`. Changing this forces a new resource to be created.
 
 * `identity` - (Optional) An `identity` block as defined below. Changing this forces a new resource to be created.
@@ -114,25 +110,13 @@ A `compute` block supports the following:
 
 ---
 
-A `customer_managed_key` block supports the following:
-
-* `key_vault_key_id` - (Required) The versionless URI of the Key Vault Key used to encrypt the Cluster.
-
-~> **Note:** The URI must use HTTPS and have the form `https://example.vault.azure.net/keys/example-key`, without a key version. Azure Government and Azure China Key Vault endpoints are also supported.
-
-* `user_assigned_identity_id` - (Required) The ID of the User Assigned Identity used to access the Key Vault Key.
-
-~> **Note:** This identity must be included in `identity.identity_ids` and have permission to access the key. When changing both the key and encryption identity in one apply, the provider rotates the key first and waits for completion before rotating the identity. The existing identity must be able to access the new key during that transition.
-
----
-
 An `identity` block supports the following:
 
 * `type` - (Required) The type of Managed Identity assigned to the Cluster. The only possible value is `UserAssigned`.
 
 * `identity_ids` - (Required) A set of User Assigned Identity IDs assigned to the Cluster.
 
-~> **Note:** Changing the set of assigned identities forces a new resource to be created. To rotate the encryption identity without replacing the Cluster, assign both the current and future encryption identities when creating the Cluster.
+~> **Note:** Changing the set of assigned identities forces a new resource to be created.
 
 ---
 

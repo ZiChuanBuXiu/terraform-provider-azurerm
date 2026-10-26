@@ -146,21 +146,6 @@ func TestAccHorizondbCluster_restoreCrossRegion(t *testing.T) {
 	})
 }
 
-func TestAccHorizondbCluster_customerManagedKey(t *testing.T) {
-	r := HorizondbClusterResource{}
-	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
-	data.ResourceTest(t, r, []acceptance.TestStep{
-		{Config: r.customerManagedKey(data, 0, 0, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{Config: r.customerManagedKey(data, 1, 0, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{Config: r.customerManagedKey(data, 1, 1, true), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{Config: r.customerManagedKey(data, 0, 0, false), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep("administrator_login", "administrator_password"),
-	})
-}
-
 func TestAccHorizondbCluster_versionRequired(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
 	r := HorizondbClusterResource{}
@@ -302,37 +287,6 @@ func TestAccHorizondbCluster_poolValidation(t *testing.T) {
 	})
 }
 
-func TestAccHorizondbCluster_customerManagedKeyValidation(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
-	r := HorizondbClusterResource{}
-	matchingIdentity := `
-identity {
-  type         = "UserAssigned"
-  identity_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/key"]
-}
-`
-	otherIdentity := `
-identity {
-  type         = "UserAssigned"
-  identity_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/other"]
-}
-`
-	data.ResourceTest(t, r, []acceptance.TestStep{
-		{
-			Config:      r.invalidCustomerManagedKey(data, "", false),
-			ExpectError: regexp.MustCompile("`identity` is required with `customer_managed_key`"),
-		},
-		{
-			Config:      r.invalidCustomerManagedKey(data, otherIdentity, false),
-			ExpectError: regexp.MustCompile("`customer_managed_key.user_assigned_identity_id` must be included in `identity.identity_ids`"),
-		},
-		{
-			Config:      r.invalidCustomerManagedKey(data, matchingIdentity, true),
-			ExpectError: regexp.MustCompile("`geo_redundant_backup_enabled` cannot be true with `customer_managed_key`"),
-		},
-	})
-}
-
 func TestAccHorizondbCluster_identity(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
 	r := HorizondbClusterResource{}
@@ -354,38 +308,6 @@ func TestAccHorizondbCluster_identity(t *testing.T) {
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
 			Config: r.identity(data, false),
-			ConfigPlanChecks: resource.ConfigPlanChecks{
-				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
-				},
-			},
-			Check: check.That(data.ResourceName).ExistsInAzure(r),
-		},
-		data.ImportStep("administrator_login", "administrator_password"),
-	})
-}
-
-func TestAccHorizondbCluster_customerManagedKeyReplacement(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
-	r := HorizondbClusterResource{}
-	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
-		{
-			Config: r.encryption(data, "", false),
-			Check:  check.That(data.ResourceName).ExistsInAzure(r),
-		},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{
-			Config: r.customerManagedKey(data, 0, 0, false),
-			ConfigPlanChecks: resource.ConfigPlanChecks{
-				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
-				},
-			},
-			Check: check.That(data.ResourceName).ExistsInAzure(r),
-		},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{
-			Config: r.encryption(data, "", false),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
 					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
@@ -807,132 +729,7 @@ resource "azurerm_user_assigned_identity" "test" {
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
 }
-`, r.templateWithFeatures(data, `
-key_vault {
-  purge_soft_delete_on_destroy       = false
-  purge_soft_deleted_keys_on_destroy = false
-}
-`), data.RandomInteger)
-}
-
-func (r HorizondbClusterResource) cmkTemplate(data acceptance.TestData) string {
-	return fmt.Sprintf(`
-%s
-
-data "azurerm_client_config" "current" {}
-
-resource "azurerm_key_vault" "test" {
-  name                       = "acctestkv%s"
-  resource_group_name        = azurerm_resource_group.test.name
-  location                   = azurerm_resource_group.test.location
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = "standard"
-  rbac_authorization_enabled = false
-  purge_protection_enabled   = true
-  soft_delete_retention_days = 7
-}
-
-resource "azurerm_key_vault_access_policy" "cluster" {
-  count        = 2
-  key_vault_id = azurerm_key_vault.test.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.test[count.index].principal_id
-
-  key_permissions = ["Get", "List", "WrapKey", "UnwrapKey"]
-}
-
-resource "azurerm_key_vault_access_policy" "client" {
-  key_vault_id = azurerm_key_vault.test.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = data.azurerm_client_config.current.object_id
-
-  key_permissions = ["Get", "Create", "Delete", "List", "Restore", "Recover", "GetRotationPolicy", "SetRotationPolicy"]
-}
-
-resource "azurerm_key_vault_key" "test" {
-  count        = 2
-  name         = "acctest-key-${count.index}"
-  key_vault_id = azurerm_key_vault.test.id
-  key_type     = "RSA"
-  key_size     = 2048
-  key_opts     = ["decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"]
-
-  depends_on = [
-    azurerm_key_vault_access_policy.client,
-    azurerm_key_vault_access_policy.cluster,
-  ]
-}
-`, r.identityTemplate(data), data.RandomString)
-}
-
-func (r HorizondbClusterResource) customerManagedKey(data acceptance.TestData, key, identity int, updated bool) string {
-	return r.encryption(data, fmt.Sprintf(`
-customer_managed_key {
-  key_vault_key_id          = azurerm_key_vault_key.test[%d].versionless_id
-  user_assigned_identity_id = azurerm_user_assigned_identity.test[%d].id
-}
-`, key, identity), updated)
-}
-
-func (r HorizondbClusterResource) encryption(data acceptance.TestData, encryption string, updated bool) string {
-	retention := 7
-	if updated {
-		retention = 14
-	}
-	return fmt.Sprintf(`
-%s
-
-resource "azurerm_horizondb_cluster" "test" {
-  name                          = "acctest-horizondb-%d"
-  resource_group_name           = azurerm_resource_group.test.name
-  location                      = azurerm_resource_group.test.location
-  postgresql_version            = "18"
-  administrator_login           = "acctestadmin"
-  administrator_password        = "P@ssword-123!"
-  backup_retention_days         = %d
-  public_network_access_enabled = %t
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = azurerm_user_assigned_identity.test[*].id
-  }
-
-  %s
-
-  %s
-
-  tags = {
-    rotated = "%t"
-  }
-
-  depends_on = [azurerm_key_vault_key.test]
-}
-`, r.cmkTemplate(data), data.RandomInteger, retention, updated, encryption, r.pool(), updated)
-}
-
-func (r HorizondbClusterResource) invalidCustomerManagedKey(data acceptance.TestData, identity string, geoBackup bool) string {
-	return fmt.Sprintf(`
-%s
-
-resource "azurerm_horizondb_cluster" "test" {
-  name                         = "acctest-horizondb-%d"
-  resource_group_name          = azurerm_resource_group.test.name
-  location                     = azurerm_resource_group.test.location
-  postgresql_version           = "18"
-  administrator_login          = "acctestadmin"
-  administrator_password       = "P@ssword-123!"
-  geo_redundant_backup_enabled = %t
-
-  %s
-
-  customer_managed_key {
-    key_vault_key_id          = "https://acctest.vault.azure.net/keys/key"
-    user_assigned_identity_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/key"
-  }
-
-  %s
-}
-`, r.template(data), data.RandomInteger, geoBackup, identity, r.pool())
+`, r.template(data), data.RandomInteger)
 }
 
 func (r HorizondbClusterResource) identity(data acceptance.TestData, enabled bool) string {
