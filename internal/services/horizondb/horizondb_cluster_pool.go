@@ -40,7 +40,7 @@ type HorizondbClusterPoolCompute struct {
 func horizondbClusterPoolSchema() *pluginsdk.Schema {
 	return &pluginsdk.Schema{
 		Type:     pluginsdk.TypeList,
-		Optional: true,
+		Required: true,
 		MinItems: 1,
 		MaxItems: 1,
 		Elem: &pluginsdk.Resource{Schema: map[string]*pluginsdk.Schema{
@@ -124,7 +124,7 @@ func validateHorizondbClusterPoolConfig(config cty.Value) error {
 
 func validateHorizondbClusterPoolRename(old, new string) error {
 	if old != "" && new != "" && old != new {
-		return errors.New("changing `pool.name` in place is not supported; apply removal of the `pool` block before adding a pool with a new name")
+		return errors.New("changing `pool.name` in place is not supported; replace the cluster to use a different pool name")
 	}
 	return nil
 }

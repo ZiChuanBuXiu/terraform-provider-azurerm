@@ -10,7 +10,7 @@ description: |-
 
 Manages a HorizonDB Cluster.
 
--> **Note:** The optional `pool` block provisions compute after the Cluster is created. Without this block, a new Cluster has no compute Pool and cannot serve database traffic. This API version supports at most one Pool per Cluster.
+-> **Note:** The required `pool` block provisions compute after the Cluster is created. This resource supports exactly one Pool per Cluster.
 
 ## Example Usage
 
@@ -64,6 +64,12 @@ The following arguments are supported:
 
 * `administrator_password` - (Required) The PostgreSQL administrator password.
 
+* `pool` - (Required) A `pool` block as defined below.
+
+~> **Note:** This resource owns the Cluster's singleton Pool. Refresh and import discover an existing Pool, even if it was created outside Terraform. The block cannot be omitted or removed from configuration. Do not manage the same Pool's compute configuration through another resource or deployment.
+
+-> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Compute updates preserve the Pool's parameter-group association, and this resource does not automatically restart Pools.
+
 * `backup_retention_days` - (Optional) The backup retention period in days.
 
 ~> **Note:** Possible values range between `1` and `35`. When omitted during creation, Azure uses its default of `7` days. Removing this argument from an existing configuration preserves the current retention period rather than resetting it.
@@ -77,14 +83,6 @@ The following arguments are supported:
 * `geo_redundant_backup_enabled` - (Optional) Is geo-redundant backup enabled? Defaults to `false`. Changing this forces a new resource to be created.
 
 * `identity` - (Optional) An `identity` block as defined below. Changing this forces a new resource to be created.
-
-* `pool` - (Optional) A `pool` block as defined below.
-
-~> **Note:** This resource owns the Cluster's singleton Pool. Refresh and import discover an existing Pool, even if it was created outside Terraform. Omitting the block from configuration plans its deletion. Do not manage the same Pool's compute configuration through another resource or deployment.
-
-~> **Note:** Removing the `pool` block deletes the Pool, its Pool-scoped Endpoint, and that Endpoint's firewall rules, without deleting the Cluster. Because it is the only Pool, existing Cluster private endpoint connections are rejected. Customer-owned private endpoints are not deleted. Remove dependent firewall resources before removing the Pool.
-
--> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Compute updates preserve the Pool's parameter-group association, and this resource does not automatically restart Pools.
 
 * `postgresql_version` - (Optional) The PostgreSQL major version. Possible values are `17` and `18`. Changing this forces a new resource to be created.
 
@@ -148,7 +146,7 @@ A `pool` block supports the following:
 
 * `name` - (Required) The name of the Pool.
 
-~> **Note:** The name must contain between 1 and 63 lowercase letters, numbers, or hyphens, must start and end with a letter or number, and must differ from the Cluster name. In-place renaming is rejected. Apply removal of the `pool` block before adding a Pool with a different name; this does not require replacement of the Cluster.
+~> **Note:** The name must contain between 1 and 63 lowercase letters, numbers, or hyphens, must start and end with a letter or number, and must differ from the Cluster name. In-place renaming is rejected. Replace the Cluster to use a different Pool name.
 
 * `node_count` - (Required) The number of nodes allocated to the Pool.
 
@@ -168,7 +166,7 @@ A `restore` block supports the following:
 
 ~> **Note:** This is required for cross-region restores and optional for same-region restores. Cross-region restores require an eligible geo-replicated backup from the source Cluster.
 
--> **Note:** Restoring a Cluster does not clone the source Pool or its child resources. If `pool` is configured, a new Pool is created after restoration using the restored PostgreSQL version to select its default parameter group.
+-> **Note:** Restoring a Cluster does not clone the source Pool or its child resources. A new Pool is created from the required `pool` block after restoration using the restored PostgreSQL version to select its default parameter group.
 
 ## Attributes Reference
 

@@ -173,8 +173,10 @@ resource "azurerm_horizondb_cluster" "test" {
   location               = azurerm_resource_group.test.location
   administrator_login    = "acctestadmin"
   administrator_password = "P@ssword-123!"
+
+  %s
 }
-`, r.template(data), data.RandomInteger),
+`, r.template(data), data.RandomInteger, r.pool()),
 		ExpectError: regexp.MustCompile("`postgresql_version` is required"),
 	}})
 }
@@ -193,8 +195,10 @@ resource "azurerm_horizondb_cluster" "test" {
   create_mode            = "PointInTimeRestore"
   administrator_login    = "acctestadmin"
   administrator_password = "P@ssword-123!"
+
+  %s
 }
-`, r.template(data), data.RandomInteger),
+`, r.template(data), data.RandomInteger, r.pool()),
 			ExpectError: regexp.MustCompile("`restore` is required when `create_mode` is `PointInTimeRestore`"),
 		},
 		{
@@ -212,8 +216,10 @@ resource "azurerm_horizondb_cluster" "test" {
     source_horizondb_cluster_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.HorizonDb/clusters/source"
     point_in_time_utc           = "2026-10-01T00:00:00Z"
   }
+
+  %s
 }
-`, r.template(data), data.RandomInteger),
+`, r.template(data), data.RandomInteger, r.pool()),
 			ExpectError: regexp.MustCompile("`restore` can only be specified when `create_mode` is `PointInTimeRestore`"),
 		},
 		{
@@ -233,8 +239,10 @@ resource "azurerm_horizondb_cluster" "test" {
     source_horizondb_cluster_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.HorizonDb/clusters/source"
     point_in_time_utc           = "2026-10-01T00:00:00Z"
   }
+
+  %s
 }
-`, r.template(data), data.RandomInteger),
+`, r.template(data), data.RandomInteger, r.pool()),
 			ExpectError: regexp.MustCompile("`postgresql_version` must be omitted when `create_mode` is `PointInTimeRestore`"),
 		},
 	})
@@ -262,8 +270,6 @@ func TestAccHorizondbCluster_pool(t *testing.T) {
 		{Config: r.withPool(data, "primary", 2, "AnyZone", 16), Check: check.That(data.ResourceName).ExistsInAzure(r)},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{Config: r.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
-		data.ImportStep("administrator_login", "administrator_password"),
-		{Config: r.withPool(data, "replacement", 1, "Disabled", 4), Check: check.That(data.ResourceName).ExistsInAzure(r)},
 		data.ImportStep("administrator_login", "administrator_password"),
 	})
 }
@@ -466,8 +472,11 @@ func (HorizondbClusterResource) checkOverwritten(ctx context.Context, client *cl
 	if err != nil {
 		return fmt.Errorf("listing pools for %s: %+v", id, err)
 	}
-	if len(result.Items) != 0 {
-		return fmt.Errorf("expected overwrite to remove the pre-existing pool for %s, got %d pools", id, len(result.Items))
+	if len(result.Items) != 1 {
+		return fmt.Errorf("expected overwrite to retain one pool for %s, got %d pools", id, len(result.Items))
+	}
+	if result.Items[0].Properties == nil || result.Items[0].Properties.ComputeModel.VCores != 8 {
+		return errors.New("expected overwrite to update the pre-existing pool to 8 vCores")
 	}
 	authId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
 	auth, err := client.HorizonDB.PasswordAuthenticationsClient.Get(ctx, authId)
@@ -512,17 +521,23 @@ resource "azurerm_resource_group" "test" {
 }
 
 func (r HorizondbClusterResource) basic(data acceptance.TestData) string {
-	return fmt.Sprintf(`
-%s
-resource "azurerm_horizondb_cluster" "test" {
-  name                   = "acctest-horizondb-%d"
-  resource_group_name    = azurerm_resource_group.test.name
-  location               = azurerm_resource_group.test.location
-  postgresql_version     = "18"
-  administrator_login    = "acctestadmin"
-  administrator_password = "P@ssword-123!"
+	return r.withPool(data, "primary", 1, "Disabled", 4)
 }
-`, r.template(data), data.RandomInteger)
+
+func (HorizondbClusterResource) pool() string {
+	return `
+pool {
+  name                   = "primary"
+  node_count             = 1
+  high_availability_mode = "Disabled"
+
+  compute {
+    processor  = "AMD"
+    generation = 1
+    vcores     = 4
+  }
+}
+`
 }
 
 func (r HorizondbClusterResource) withAdministratorPassword(data acceptance.TestData, password string) string {
@@ -535,8 +550,10 @@ resource "azurerm_horizondb_cluster" "test" {
   postgresql_version     = "18"
   administrator_login    = "acctestadmin"
   administrator_password = %q
+
+  %s
 }
-`, r.template(data), data.RandomInteger, password)
+`, r.template(data), data.RandomInteger, password, r.pool())
 }
 
 func (r HorizondbClusterResource) withPool(data acceptance.TestData, name string, nodes int, mode string, cores int) string {
@@ -645,8 +662,10 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_password        = "P@ssword-123!"
   backup_retention_days         = 7
   public_network_access_enabled = false
+
+  %s
 }
-`, r.template(data), data.RandomInteger)
+`, r.template(data), data.RandomInteger, r.pool())
 }
 
 func (r HorizondbClusterResource) settings(data acceptance.TestData, retention int, publicNetworkAccessEnabled bool) string {
@@ -661,12 +680,15 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_password        = "P@ssword-123!"
   backup_retention_days         = %d
   public_network_access_enabled = %t
+
+  %s
+
   tags = {
     environment = "acceptance"
     retention   = "%d"
   }
 }
-`, r.template(data), data.RandomInteger, retention, publicNetworkAccessEnabled, retention)
+`, r.template(data), data.RandomInteger, retention, publicNetworkAccessEnabled, r.pool(), retention)
 }
 
 func (r HorizondbClusterResource) requiresImport(data acceptance.TestData) string {
@@ -679,8 +701,10 @@ resource "azurerm_horizondb_cluster" "import" {
   postgresql_version     = azurerm_horizondb_cluster.test.postgresql_version
   administrator_login    = azurerm_horizondb_cluster.test.administrator_login
   administrator_password = azurerm_horizondb_cluster.test.administrator_password
+
+  %s
 }
-`, r.basic(data))
+`, r.basic(data), r.pool())
 }
 
 func (r HorizondbClusterResource) geoRedundantBackup(data acceptance.TestData) string {
@@ -695,8 +719,10 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_login          = "acctestadmin"
   administrator_password       = "P@ssword-123!"
   geo_redundant_backup_enabled = true
+
+  %s
 }
-`, r.template(data), data.RandomInteger)
+`, r.template(data), data.RandomInteger, r.pool())
 }
 
 func (r HorizondbClusterResource) restore(data acceptance.TestData, crossRegion bool) string {
@@ -724,8 +750,10 @@ resource "azurerm_horizondb_cluster" "restored" {
     point_in_time_utc           = azurerm_horizondb_cluster.test.earliest_restore_point_utc
     %s
   }
+
+  %s
 }
-`, source, data.RandomInteger, targetLocation, sourceLocation)
+`, source, data.RandomInteger, targetLocation, sourceLocation, r.pool())
 }
 
 func (HorizondbClusterResource) waitForRestorePoint(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) error {
@@ -871,13 +899,15 @@ resource "azurerm_horizondb_cluster" "test" {
 
   %s
 
+  %s
+
   tags = {
     rotated = "%t"
   }
 
   depends_on = [azurerm_key_vault_key.test]
 }
-`, r.cmkTemplate(data), data.RandomInteger, retention, updated, encryption, updated)
+`, r.cmkTemplate(data), data.RandomInteger, retention, updated, encryption, r.pool(), updated)
 }
 
 func (r HorizondbClusterResource) invalidCustomerManagedKey(data acceptance.TestData, identity string, geoBackup bool) string {
@@ -899,8 +929,10 @@ resource "azurerm_horizondb_cluster" "test" {
     key_vault_key_id          = "https://acctest.vault.azure.net/keys/key"
     user_assigned_identity_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/key"
   }
+
+  %s
 }
-`, r.template(data), data.RandomInteger, geoBackup, identity)
+`, r.template(data), data.RandomInteger, geoBackup, identity, r.pool())
 }
 
 func (r HorizondbClusterResource) identity(data acceptance.TestData, enabled bool) string {
@@ -925,8 +957,10 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_password = "P@ssword-123!"
 
   %s
+
+  %s
 }
-`, r.identityTemplate(data), data.RandomInteger, identity)
+`, r.identityTemplate(data), data.RandomInteger, identity, r.pool())
 }
 
 func (r HorizondbClusterResource) overwritePrerequisites(data acceptance.TestData) string {
@@ -969,6 +1003,18 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_password        = "P@ssword-456!"
   backup_retention_days         = 14
   public_network_access_enabled = false
+
+  pool {
+    name                   = "primary"
+    node_count             = 1
+    high_availability_mode = "Disabled"
+
+    compute {
+      processor  = "AMD"
+      generation = 1
+      vcores     = 8
+    }
+  }
 
   tags = {
     environment = "overwritten"
