@@ -60,9 +60,9 @@ The following arguments are supported:
 
 * `location` - (Required) The Azure Region where the HorizonDB Cluster should exist. Changing this forces a new resource to be created.
 
-* `administrator_login` - (Required) The PostgreSQL administrator login name. Changing this forces a new resource to be created.
+* `administrator_login` - (Required) The PostgreSQL administrator login name, which must be between 1 and 63 characters in length. Changing this forces a new resource to be created.
 
-* `administrator_password` - (Required) The PostgreSQL administrator password.
+* `administrator_password` - (Required) The PostgreSQL administrator password, which must be between 8 and 128 characters in length.
 
 * `pool` - (Required) A `pool` block as defined below.
 

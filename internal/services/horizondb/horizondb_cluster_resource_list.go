@@ -68,14 +68,20 @@ func (HorizondbClusterListResource) List(ctx context.Context, request list.ListR
 			resourceMetadata := sdk.NewResourceMetaData(metadata.Client, HorizondbClusterResource{})
 			resourceMetadata.ResourceData.SetId(id.ID())
 			var pool *pools.Pool
+			var administratorLogin string
 			if request.IncludeResource {
 				pool, err = readHorizondbClusterPool(ctx, resourceMetadata, *id)
 				if err != nil {
 					sdk.SetErrorDiagnosticAndPushListResult(result, push, "retrieving HorizonDB Cluster Pool", err)
 					return
 				}
+				administratorLogin, err = readHorizondbClusterAdministratorLogin(ctx, metadata.Client.HorizonDB.PasswordAuthenticationsClient, *id)
+				if err != nil {
+					sdk.SetErrorDiagnosticAndPushListResult(result, push, "retrieving HorizonDB Cluster administrator login", err)
+					return
+				}
 			}
-			if err := (HorizondbClusterResource{}).flatten(resourceMetadata, id, &item, pool); err != nil {
+			if err := (HorizondbClusterResource{}).flatten(resourceMetadata, id, &item, pool, administratorLogin); err != nil {
 				sdk.SetErrorDiagnosticAndPushListResult(result, push, fmt.Sprintf("encoding `%s` resource data", HorizondbClusterResource{}.ResourceType()), err)
 				return
 			}

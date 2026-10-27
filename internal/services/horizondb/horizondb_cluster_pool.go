@@ -146,26 +146,26 @@ func readHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMetaData
 
 func flattenHorizondbClusterPool(clusterId clusters.ClusterId, model *pools.Pool) ([]HorizondbClusterPool, error) {
 	if model == nil {
-		return nil, nil
+		return []HorizondbClusterPool{}, nil
 	}
 	id, err := pools.ParsePoolIDInsensitively(pointer.From(model.Id))
 	if err != nil {
-		return nil, err
+		return []HorizondbClusterPool{}, err
 	}
 	if !strings.EqualFold(id.SubscriptionId, clusterId.SubscriptionId) || !strings.EqualFold(id.ResourceGroupName, clusterId.ResourceGroupName) || !strings.EqualFold(id.ClusterName, clusterId.ClusterName) {
-		return nil, fmt.Errorf("pool %s does not belong to %s", id, clusterId)
+		return []HorizondbClusterPool{}, fmt.Errorf("pool %s does not belong to %s", id, clusterId)
 	}
 	props := model.Properties
 	if props == nil || props.ComputeModel.ComputeProcessor == "" || props.ComputeModel.ComputeGeneration < 1 || props.ComputeModel.VCores < 2 || props.NodeCount < 1 || props.HighAvailability.Mode == "" {
-		return nil, fmt.Errorf("retrieving %s: required pool configuration is missing", id)
+		return []HorizondbClusterPool{}, fmt.Errorf("retrieving %s: required pool configuration is missing", id)
 	}
 	if props.ComputeModel.Type != pools.PoolComputeModelTypeProvisioned {
-		return nil, fmt.Errorf("retrieving %s: unsupported compute model type %q", id, props.ComputeModel.Type)
+		return []HorizondbClusterPool{}, fmt.Errorf("retrieving %s: unsupported compute model type %q", id, props.ComputeModel.Type)
 	}
 	if props.ScheduledMaintenance != nil {
 		maintenance := props.ScheduledMaintenance.ScheduledMaintenanceProperties().MaintenanceManagementType
 		if maintenance != pools.ScheduledMaintenanceManagementTypeSystem {
-			return nil, fmt.Errorf("retrieving %s: unsupported maintenance management type %q", id, maintenance)
+			return []HorizondbClusterPool{}, fmt.Errorf("retrieving %s: unsupported maintenance management type %q", id, maintenance)
 		}
 	}
 	return []HorizondbClusterPool{{
@@ -265,7 +265,7 @@ func expandHorizondbClusterPoolUpdate(state HorizondbClusterPool) pools.PoolForP
 				ComputeGeneration: pointer.To(compute.ComputeGeneration), VCores: pointer.To(compute.VCores),
 			},
 			NodeCount:        pointer.To(state.NodeCount),
-			HighAvailability: &pools.PoolHighAvailabilityPatch{Mode: pointer.To(pools.PoolHighAvailabilityMode(state.HighAvailabilityMode))},
+			HighAvailability: &pools.PoolHighAvailabilityPatch{Mode: pointer.ToEnum[pools.PoolHighAvailabilityMode](state.HighAvailabilityMode)},
 			ScheduledMaintenance: &pools.ScheduledMaintenancePropertiesForPatchUpdate{
 				MaintenanceManagementType: pointer.To(pools.ScheduledMaintenanceManagementTypeSystem),
 			},

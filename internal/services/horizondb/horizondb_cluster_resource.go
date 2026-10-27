@@ -98,6 +98,7 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			Sensitive:    true,
 			ValidateFunc: validation.StringLenBetween(8, 128),
 		},
+		"pool": horizondbClusterPoolSchema(),
 		"backup_retention_days": {
 			Type:         pluginsdk.TypeInt,
 			Optional:     true,
@@ -119,13 +120,13 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 		},
 		"identity": commonschema.UserAssignedIdentityOptional(),
 		"postgresql_version": {
-			Type:         pluginsdk.TypeString,
-			Optional:     true,
+			Type:     pluginsdk.TypeString,
+			Optional: true,
+			// NOTE: O+C - Restored clusters inherit their PostgreSQL version from the source backup.
 			Computed:     true,
 			ForceNew:     true,
 			ValidateFunc: validation.StringInSlice(clusters.PossibleValuesForPostgreSqlVersion(), false),
 		},
-		"pool": horizondbClusterPoolSchema(),
 		"public_network_access_enabled": {
 			Type:     pluginsdk.TypeBool,
 			Optional: true,
@@ -279,7 +280,11 @@ func (r HorizondbClusterResource) Read() sdk.ResourceFunc {
 			if err != nil {
 				return err
 			}
-			return r.flatten(metadata, id, resp.Model, pool)
+			login, err := readHorizondbClusterAdministratorLogin(ctx, metadata.Client.HorizonDB.PasswordAuthenticationsClient, *id)
+			if err != nil {
+				return err
+			}
+			return r.flatten(metadata, id, resp.Model, pool, login)
 		},
 	}
 }
@@ -377,6 +382,18 @@ func reconcileHorizondbClusterPasswordAuthentication(ctx context.Context, metada
 	return nil
 }
 
+func readHorizondbClusterAdministratorLogin(ctx context.Context, client *passwordauthentications.PasswordAuthenticationsClient, id clusters.ClusterId) (string, error) {
+	authenticationId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
+	resp, err := client.Get(ctx, authenticationId)
+	if err != nil {
+		return "", fmt.Errorf("retrieving password authentication for %s: %+v", id, err)
+	}
+	if resp.Model == nil || resp.Model.Properties == nil || pointer.From(resp.Model.Properties.AdministratorLogin) == "" {
+		return "", fmt.Errorf("retrieving password authentication for %s: administrator login is missing", id)
+	}
+	return *resp.Model.Properties.AdministratorLogin, nil
+}
+
 func configuredHorizondbBackupRetention(config cty.Value, retention int64) (*int64, error) {
 	if config.IsNull() {
 		return nil, nil
@@ -403,7 +420,7 @@ func expandHorizondbCluster(state HorizondbClusterResourceModel, retention *int6
 		Location: location.Normalize(state.Location),
 		Tags:     pointer.To(state.Tags),
 		Properties: &clusters.ClusterProperties{
-			CreationMode: pointer.To(clusters.ClusterCreateMode(state.CreateMode)),
+			CreationMode: pointer.ToEnum[clusters.ClusterCreateMode](state.CreateMode),
 			Network:      &clusters.Network{PublicAccess: pointer.To(horizondbPublicNetworkAccess(state.PublicNetworkAccessEnabled))},
 			Backup: &clusters.BackupProperties{
 				GeoRedundancy: geoRedundancy,
@@ -426,7 +443,7 @@ func expandHorizondbCluster(state HorizondbClusterResourceModel, retention *int6
 		if state.PostgresqlVersion == "" {
 			return payload, errors.New("`postgresql_version` is required when `create_mode` is `Create`")
 		}
-		payload.Properties.PostgreSqlVersion = pointer.To(clusters.PostgreSqlVersion(state.PostgresqlVersion))
+		payload.Properties.PostgreSqlVersion = pointer.ToEnum[clusters.PostgreSqlVersion](state.PostgresqlVersion)
 	case clusters.ClusterCreateModePointInTimeRestore:
 		if len(state.Restore) == 0 {
 			return payload, errors.New("`restore` is required when `create_mode` is `PointInTimeRestore`")
@@ -460,7 +477,7 @@ func expandHorizondbClusterUpdates(state HorizondbClusterResourceModel, hasChang
 	return nil
 }
 
-func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clusters.ClusterId, model *clusters.Cluster, pool *pools.Pool) error {
+func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clusters.ClusterId, model *clusters.Cluster, pool *pools.Pool, administratorLogin string) error {
 	if model == nil || model.Properties == nil {
 		return fmt.Errorf("retrieving %s: cluster properties are missing", id)
 	}
@@ -474,7 +491,7 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 		ResourceGroupName:     id.ResourceGroupName,
 		Location:              location.Normalize(model.Location),
 		PostgresqlVersion:     pointer.FromEnum(props.PostgreSqlVersion),
-		AdministratorLogin:    previous.AdministratorLogin,
+		AdministratorLogin:    administratorLogin,
 		AdministratorPassword: previous.AdministratorPassword,
 		BackupRetentionDays:   7,
 		CreateMode:            pointer.FromEnum(props.CreationMode),
