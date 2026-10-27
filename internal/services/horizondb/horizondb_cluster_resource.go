@@ -43,7 +43,6 @@ type HorizondbClusterResourceModel struct {
 	PublicNetworkAccessEnabled bool                         `tfschema:"public_network_access_enabled"`
 	Restore                    []HorizondbClusterRestore    `tfschema:"restore"`
 	Tags                       map[string]string            `tfschema:"tags"`
-	EarliestRestorePointUtc    string                       `tfschema:"earliest_restore_point_utc"`
 }
 
 type HorizondbClusterRestore struct {
@@ -159,12 +158,7 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 }
 
 func (HorizondbClusterResource) Attributes() map[string]*pluginsdk.Schema {
-	return map[string]*pluginsdk.Schema{
-		"earliest_restore_point_utc": {
-			Type:     pluginsdk.TypeString,
-			Computed: true,
-		},
-	}
+	return map[string]*pluginsdk.Schema{}
 }
 
 func (HorizondbClusterResource) CustomizeDiff() sdk.ResourceFunc {
@@ -497,7 +491,6 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 			state.BackupRetentionDays = *props.Backup.RetentionDays
 		}
 		state.GeoRedundantBackupEnabled = props.Backup.GeoRedundancy == clusters.GeoRedundancyStateEnabled
-		state.EarliestRestorePointUtc = pointer.From(props.Backup.EarliestRestorePointUtc)
 	}
 	flattenedIdentity, err := identity.FlattenUserAssignedMapToModel(model.Identity)
 	if err != nil {

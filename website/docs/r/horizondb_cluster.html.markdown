@@ -160,8 +160,6 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 * `id` - The ID of the HorizonDB Cluster.
 
-* `earliest_restore_point_utc` - The earliest available restore point in UTC.
-
 * `pool` - A `pool` block as defined below.
 
 ---
