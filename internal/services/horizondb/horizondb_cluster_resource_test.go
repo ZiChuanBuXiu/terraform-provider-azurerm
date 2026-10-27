@@ -109,7 +109,7 @@ func TestAccHorizondbCluster_restore(t *testing.T) {
 				restoreVariables["point_in_time_utc"] = config.StringVariable(time.Now().UTC().Format(time.RFC3339))
 				time.Sleep(time.Minute)
 			},
-			Config:          r.restore(data, false),
+			Config:          r.restore(data),
 			ConfigVariables: restoreVariables,
 			Check:           check.That("azurerm_horizondb_cluster.restored").ExistsInAzure(r),
 		},
@@ -138,7 +138,7 @@ func TestAccHorizondbCluster_restoreCrossRegion(t *testing.T) {
 				restoreVariables["point_in_time_utc"] = config.StringVariable(time.Now().UTC().Format(time.RFC3339))
 				time.Sleep(time.Minute)
 			},
-			Config:          r.restore(data, true),
+			Config:          r.restoreCrossRegion(data),
 			ConfigVariables: restoreVariables,
 			Check:           check.That("azurerm_horizondb_cluster.restored").ExistsInAzure(r),
 		},
@@ -151,12 +151,12 @@ func TestAccHorizondbCluster_identity(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceSequentialTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.identity(data, 0),
+			Config: r.withoutIdentity(data),
 			Check:  check.That(data.ResourceName).ExistsInAzure(r),
 		},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
-			Config: r.identity(data, 2),
+			Config: r.withTwoUserAssignedIdentities(data),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
 					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
@@ -166,7 +166,7 @@ func TestAccHorizondbCluster_identity(t *testing.T) {
 		},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
-			Config: r.identity(data, 1),
+			Config: r.withOneUserAssignedIdentity(data),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
 					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
@@ -176,7 +176,7 @@ func TestAccHorizondbCluster_identity(t *testing.T) {
 		},
 		data.ImportStep("administrator_login", "administrator_password"),
 		{
-			Config: r.identity(data, 0),
+			Config: r.withoutIdentity(data),
 			ConfigPlanChecks: resource.ConfigPlanChecks{
 				PreApply: []plancheck.PlanCheck{
 					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
@@ -396,15 +396,7 @@ resource "azurerm_horizondb_cluster" "test" {
 `, r.template(data), data.RandomInteger, r.pool())
 }
 
-func (r HorizondbClusterResource) restore(data acceptance.TestData, crossRegion bool) string {
-	source := r.basic(data)
-	targetLocation := "azurerm_resource_group.test.location"
-	sourceLocation := ""
-	if crossRegion {
-		source = r.geoRedundantBackup(data)
-		targetLocation = fmt.Sprintf("%q", data.Locations.Secondary)
-		sourceLocation = "source_location = azurerm_horizondb_cluster.test.location"
-	}
+func (r HorizondbClusterResource) restore(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 %s
 
@@ -415,7 +407,7 @@ variable "point_in_time_utc" {
 resource "azurerm_horizondb_cluster" "restored" {
   name                   = "acctest-horizondb-restored-%d"
   resource_group_name    = azurerm_resource_group.test.name
-  location               = %s
+  location               = azurerm_resource_group.test.location
   create_mode            = "PointInTimeRestore"
   administrator_login    = "acctestadmin"
   administrator_password = "P@ssword-123!"
@@ -423,12 +415,38 @@ resource "azurerm_horizondb_cluster" "restored" {
   restore {
     source_horizondb_cluster_id = azurerm_horizondb_cluster.test.id
     point_in_time_utc           = var.point_in_time_utc
-    %s
   }
 
   %s
 }
-`, source, data.RandomInteger, targetLocation, sourceLocation, r.pool())
+`, r.basic(data), data.RandomInteger, r.pool())
+}
+
+func (r HorizondbClusterResource) restoreCrossRegion(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
+
+variable "point_in_time_utc" {
+  type = string
+}
+
+resource "azurerm_horizondb_cluster" "restored" {
+  name                   = "acctest-horizondb-restored-%d"
+  resource_group_name    = azurerm_resource_group.test.name
+  location               = %q
+  create_mode            = "PointInTimeRestore"
+  administrator_login    = "acctestadmin"
+  administrator_password = "P@ssword-123!"
+
+  restore {
+    source_horizondb_cluster_id = azurerm_horizondb_cluster.test.id
+    point_in_time_utc           = var.point_in_time_utc
+    source_location            = azurerm_horizondb_cluster.test.location
+  }
+
+  %s
+}
+`, r.geoRedundantBackup(data), data.RandomInteger, data.Locations.Secondary, r.pool())
 }
 
 func (r HorizondbClusterResource) identityTemplate(data acceptance.TestData) string {
@@ -444,16 +462,7 @@ resource "azurerm_user_assigned_identity" "test" {
 `, r.template(data), data.RandomInteger)
 }
 
-func (r HorizondbClusterResource) identity(data acceptance.TestData, count int) string {
-	identity := ""
-	if count > 0 {
-		identity = fmt.Sprintf(`
-identity {
-  type         = "UserAssigned"
-  identity_ids = slice(azurerm_user_assigned_identity.test[*].id, 0, %d)
-}
-`, count)
-	}
+func (r HorizondbClusterResource) withoutIdentity(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 %s
 
@@ -467,11 +476,61 @@ resource "azurerm_horizondb_cluster" "test" {
 
   %s
 
+  tags = {
+    identity_count = "0"
+  }
+}
+`, r.identityTemplate(data), data.RandomInteger, r.pool())
+}
+
+func (r HorizondbClusterResource) withOneUserAssignedIdentity(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_horizondb_cluster" "test" {
+  name                   = "acctest-horizondb-%d"
+  resource_group_name    = azurerm_resource_group.test.name
+  location               = azurerm_resource_group.test.location
+  postgresql_version     = "18"
+  administrator_login    = "acctestadmin"
+  administrator_password = "P@ssword-123!"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.test[0].id]
+  }
+
   %s
 
   tags = {
-    identity_count = "%d"
+    identity_count = "1"
   }
 }
-`, r.identityTemplate(data), data.RandomInteger, identity, r.pool(), count)
+`, r.identityTemplate(data), data.RandomInteger, r.pool())
+}
+
+func (r HorizondbClusterResource) withTwoUserAssignedIdentities(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_horizondb_cluster" "test" {
+  name                   = "acctest-horizondb-%d"
+  resource_group_name    = azurerm_resource_group.test.name
+  location               = azurerm_resource_group.test.location
+  postgresql_version     = "18"
+  administrator_login    = "acctestadmin"
+  administrator_password = "P@ssword-123!"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = azurerm_user_assigned_identity.test[*].id
+  }
+
+  %s
+
+  tags = {
+    identity_count = "2"
+  }
+}
+`, r.identityTemplate(data), data.RandomInteger, r.pool())
 }
