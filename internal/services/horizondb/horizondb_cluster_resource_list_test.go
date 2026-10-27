@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/querycheck"
@@ -16,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/provider/framework"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestAccHorizondbCluster_list(t *testing.T) {
@@ -44,28 +47,7 @@ func TestAccHorizondbCluster_list(t *testing.T) {
 		TerraformVersionChecks:   []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_14_0)},
 		ProtoV5ProviderFactories: framework.ProtoV5ProviderFactoriesInit(context.Background(), "azurerm"),
 		Steps: []resource.TestStep{
-			{Config: fmt.Sprintf(`
-%s
-resource "azurerm_horizondb_cluster" "test" {
-  count               = 2
-  name                = "acctest-horizondb-%d-${count.index}"
-  resource_group_name = azurerm_resource_group.test.name
-  location            = azurerm_resource_group.test.location
-  postgresql_version  = "18"
-
-  pool {
-    name                   = "primary"
-    node_count             = 1
-    high_availability_mode = "Disabled"
-
-    compute {
-      processor  = "AMD"
-      generation = 1
-      vcores     = 4
-    }
-  }
-}
-`, r.template(data), data.RandomInteger)},
+			{Config: r.listConfig(data)},
 			{
 				Query: true,
 				Config: `
@@ -91,4 +73,65 @@ list "azurerm_horizondb_cluster" "list" {
 			},
 		},
 	})
+}
+
+func TestHorizondbClusterListConfig(t *testing.T) {
+	data := acceptance.TestData{RandomInteger: 12345}
+	data.Locations.Primary = "eastus2"
+	file, diags := hclsyntax.ParseConfig([]byte(HorizondbClusterResource{}.listConfig(data)), "list.tf", hcl.InitialPos)
+	if diags.HasErrors() {
+		t.Fatalf("parsing list setup: %s", diags.Error())
+	}
+	for _, block := range file.Body.(*hclsyntax.Body).Blocks {
+		if block.Type != "resource" || len(block.Labels) != 2 || block.Labels[0] != "azurerm_horizondb_cluster" || block.Labels[1] != "test" {
+			continue
+		}
+		for name, expected := range map[string]string{
+			"administrator_login":    "acctestadmin",
+			"administrator_password": "P@ssword-123!",
+		} {
+			attribute, ok := block.Body.Attributes[name]
+			if !ok {
+				t.Errorf("list setup is missing required attribute %q", name)
+				continue
+			}
+			value, diags := attribute.Expr.Value(nil)
+			if diags.HasErrors() {
+				t.Errorf("evaluating %q: %s", name, diags.Error())
+				continue
+			}
+			if !value.RawEquals(cty.StringVal(expected)) {
+				t.Errorf("list setup has an unexpected value for %q", name)
+			}
+		}
+		return
+	}
+	t.Fatal("list setup is missing the cluster resource")
+}
+
+func (r HorizondbClusterResource) listConfig(data acceptance.TestData) string {
+	return fmt.Sprintf(`
+%s
+resource "azurerm_horizondb_cluster" "test" {
+  count                  = 2
+  name                   = "acctest-horizondb-%d-${count.index}"
+  resource_group_name    = azurerm_resource_group.test.name
+  location               = azurerm_resource_group.test.location
+  postgresql_version     = "18"
+  administrator_login    = "acctestadmin"
+  administrator_password = "P@ssword-123!"
+
+  pool {
+    name                   = "primary"
+    node_count             = 1
+    high_availability_mode = "Disabled"
+
+    compute {
+      processor  = "AMD"
+      generation = 1
+      vcores     = 4
+    }
+  }
+}
+`, r.template(data), data.RandomInteger)
 }

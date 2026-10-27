@@ -289,6 +289,7 @@ func TestHorizondbClusterConfigFormatting(t *testing.T) {
 	r := HorizondbClusterResource{}
 	testCases := map[string]string{
 		"basic":              r.basic(data),
+		"list":               r.listConfig(data),
 		"complete":           r.complete(data),
 		"resetSettings":      r.resetSettings(data),
 		"settings":           r.settings(data, 7, false),

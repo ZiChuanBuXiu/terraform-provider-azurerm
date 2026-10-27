@@ -173,7 +173,7 @@ func (HorizondbClusterResource) CustomizeDiff() sdk.ResourceFunc {
 			if err := validateHorizondbClusterPoolConfig(diff.GetRawConfig()); err != nil {
 				return err
 			}
-			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "create_mode", "postgresql_version", "restore", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
+			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "administrator_login", "create_mode", "postgresql_version", "restore", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
 				old, new := diff.GetChange("pool.0.name")
 				if err := validateHorizondbClusterPoolRename(old.(string), new.(string)); err != nil {
 					return err
