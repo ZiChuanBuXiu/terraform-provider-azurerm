@@ -62,13 +62,21 @@ The following arguments are supported:
 
 * `administrator_login` - (Required) The PostgreSQL administrator login name, which must be between 1 and 63 characters in length. Changing this forces a new resource to be created.
 
-* `administrator_password` - (Required) The PostgreSQL administrator password, which must be between 8 and 128 characters in length.
-
 * `pool` - (Required) A `pool` block as defined below.
 
 ~> **Note:** This resource owns the Cluster's singleton Pool. Refresh and import discover an existing Pool, even if it was created outside Terraform. The block cannot be omitted or removed from configuration. Do not manage the same Pool's compute configuration through another resource or deployment.
 
 -> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Compute updates preserve the Pool's parameter-group association, and this resource does not automatically restart Pools.
+
+* `administrator_password` - (Optional) The PostgreSQL administrator password, which must be between 8 and 128 characters in length.
+
+~> **Note:** Exactly one of `administrator_password` and `administrator_password_wo` must be specified. The value of `administrator_password` is stored in Terraform state.
+
+* `administrator_password_wo` - (Optional, Write-Only) The PostgreSQL administrator password, which must be between 8 and 128 characters in length. This value is not stored in Terraform state.
+
+~> **Note:** Write-only arguments require Terraform 1.11 or later. `administrator_password_wo` and `administrator_password_wo_version` must be specified together.
+
+* `administrator_password_wo_version` - (Optional) A positive integer used to trigger an update for `administrator_password_wo`. Increment this value when updating the write-only password.
 
 * `backup_retention_days` - (Optional) The backup retention period in days.
 

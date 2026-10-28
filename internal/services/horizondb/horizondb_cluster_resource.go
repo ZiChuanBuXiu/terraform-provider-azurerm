@@ -29,20 +29,21 @@ import (
 type HorizondbClusterResource struct{}
 
 type HorizondbClusterResourceModel struct {
-	Name                       string                       `tfschema:"name"`
-	ResourceGroupName          string                       `tfschema:"resource_group_name"`
-	Location                   string                       `tfschema:"location"`
-	PostgresqlVersion          string                       `tfschema:"postgresql_version"`
-	Pool                       []HorizondbClusterPool       `tfschema:"pool"`
-	AdministratorLogin         string                       `tfschema:"administrator_login"`
-	AdministratorPassword      string                       `tfschema:"administrator_password"`
-	BackupRetentionDays        int64                        `tfschema:"backup_retention_days"`
-	CreateMode                 string                       `tfschema:"create_mode"`
-	GeoRedundantBackupEnabled  bool                         `tfschema:"geo_redundant_backup_enabled"`
-	Identity                   []identity.ModelUserAssigned `tfschema:"identity"`
-	PublicNetworkAccessEnabled bool                         `tfschema:"public_network_access_enabled"`
-	Restore                    []HorizondbClusterRestore    `tfschema:"restore"`
-	Tags                       map[string]string            `tfschema:"tags"`
+	Name                           string                       `tfschema:"name"`
+	ResourceGroupName              string                       `tfschema:"resource_group_name"`
+	Location                       string                       `tfschema:"location"`
+	PostgresqlVersion              string                       `tfschema:"postgresql_version"`
+	Pool                           []HorizondbClusterPool       `tfschema:"pool"`
+	AdministratorLogin             string                       `tfschema:"administrator_login"`
+	AdministratorPassword          string                       `tfschema:"administrator_password"`
+	AdministratorPasswordWOVersion int64                        `tfschema:"administrator_password_wo_version"`
+	BackupRetentionDays            int64                        `tfschema:"backup_retention_days"`
+	CreateMode                     string                       `tfschema:"create_mode"`
+	GeoRedundantBackupEnabled      bool                         `tfschema:"geo_redundant_backup_enabled"`
+	Identity                       []identity.ModelUserAssigned `tfschema:"identity"`
+	PublicNetworkAccessEnabled     bool                         `tfschema:"public_network_access_enabled"`
+	Restore                        []HorizondbClusterRestore    `tfschema:"restore"`
+	Tags                           map[string]string            `tfschema:"tags"`
 }
 
 type HorizondbClusterRestore struct {
@@ -93,10 +94,27 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			ValidateFunc: validation.StringLenBetween(1, 63),
 		},
 		"administrator_password": {
-			Type:         pluginsdk.TypeString,
-			Required:     true,
-			Sensitive:    true,
-			ValidateFunc: validation.StringLenBetween(8, 128),
+			Type:          pluginsdk.TypeString,
+			Optional:      true,
+			Sensitive:     true,
+			ConflictsWith: []string{"administrator_password_wo"},
+			ExactlyOneOf:  []string{"administrator_password", "administrator_password_wo"},
+			ValidateFunc:  validation.StringLenBetween(8, 128),
+		},
+		"administrator_password_wo": {
+			Type:          pluginsdk.TypeString,
+			Optional:      true,
+			WriteOnly:     true,
+			ConflictsWith: []string{"administrator_password"},
+			ExactlyOneOf:  []string{"administrator_password", "administrator_password_wo"},
+			RequiredWith:  []string{"administrator_password_wo_version"},
+			ValidateFunc:  validation.StringLenBetween(8, 128),
+		},
+		"administrator_password_wo_version": {
+			Type:         pluginsdk.TypeInt,
+			Optional:     true,
+			RequiredWith: []string{"administrator_password_wo"},
+			ValidateFunc: validation.IntAtLeast(1),
 		},
 		"pool": horizondbClusterPoolSchema(),
 		"backup_retention_days": {
@@ -324,11 +342,21 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 					return err
 				}
 			}
-			if metadata.ResourceData.HasChange("administrator_password") {
+			if metadata.ResourceData.HasChanges("administrator_password", "administrator_password_wo_version") {
+				password := state.AdministratorPassword
+				if metadata.ResourceData.HasChange("administrator_password_wo_version") {
+					woPassword, err := pluginsdk.GetWriteOnly(metadata.ResourceData, "administrator_password_wo", cty.String)
+					if err != nil {
+						return err
+					}
+					if !woPassword.IsNull() {
+						password = woPassword.AsString()
+					}
+				}
 				authenticationId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
 				payload := passwordauthentications.PasswordAuthenticationForPatchUpdate{
 					Properties: &passwordauthentications.PasswordAuthenticationPropertiesForPatchUpdate{
-						AdministratorLoginPassword: pointer.To(state.AdministratorPassword),
+						AdministratorLoginPassword: pointer.To(password),
 					},
 				}
 				if err := metadata.Client.HorizonDB.PasswordAuthenticationsClient.UpdateThenPoll(ctx, authenticationId, payload); err != nil {
@@ -369,10 +397,17 @@ func (HorizondbClusterResource) Delete() sdk.ResourceFunc {
 }
 
 func reconcileHorizondbClusterPasswordAuthentication(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId, state HorizondbClusterResourceModel) error {
+	woPassword, err := pluginsdk.GetWriteOnly(metadata.ResourceData, "administrator_password_wo", cty.String)
+	if err != nil {
+		return err
+	}
 	properties := passwordauthentications.PasswordAuthenticationProperties{
 		State:                      passwordauthentications.AuthenticationStateEnabled,
 		AdministratorLogin:         pointer.To(state.AdministratorLogin),
 		AdministratorLoginPassword: pointer.To(state.AdministratorPassword),
+	}
+	if !woPassword.IsNull() {
+		properties.AdministratorLoginPassword = pointer.To(woPassword.AsString())
 	}
 	authenticationId := passwordauthentications.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName)
 	payload := passwordauthentications.PasswordAuthentication{Properties: &properties}
@@ -487,15 +522,16 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 	}
 	props := model.Properties
 	state := HorizondbClusterResourceModel{
-		Name:                  id.ClusterName,
-		ResourceGroupName:     id.ResourceGroupName,
-		Location:              location.Normalize(model.Location),
-		PostgresqlVersion:     pointer.FromEnum(props.PostgreSqlVersion),
-		AdministratorLogin:    administratorLogin,
-		AdministratorPassword: previous.AdministratorPassword,
-		BackupRetentionDays:   7,
-		CreateMode:            pointer.FromEnum(props.CreationMode),
-		Tags:                  pointer.From(model.Tags),
+		Name:                           id.ClusterName,
+		ResourceGroupName:              id.ResourceGroupName,
+		Location:                       location.Normalize(model.Location),
+		PostgresqlVersion:              pointer.FromEnum(props.PostgreSqlVersion),
+		AdministratorLogin:             administratorLogin,
+		AdministratorPassword:          previous.AdministratorPassword,
+		AdministratorPasswordWOVersion: int64(metadata.ResourceData.Get("administrator_password_wo_version").(int)),
+		BackupRetentionDays:            7,
+		CreateMode:                     pointer.FromEnum(props.CreationMode),
+		Tags:                           pointer.From(model.Tags),
 	}
 	if state.CreateMode == "" {
 		state.CreateMode = string(clusters.ClusterCreateModeCreate)

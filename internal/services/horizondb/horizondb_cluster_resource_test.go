@@ -13,13 +13,19 @@ import (
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/horizondb/2026-10-01-preview/clusters"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/provider/framework"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/horizondb"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 )
 
@@ -96,6 +102,71 @@ func TestAccHorizondbCluster_geoRedundantBackup(t *testing.T) {
 			Check:  check.That(data.ResourceName).ExistsInAzure(r),
 		},
 		data.ImportStep("administrator_password"),
+	})
+}
+
+func TestAccHorizondbCluster_writeOnlyPassword(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
+	r := HorizondbClusterResource{}
+	resource.ParallelTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		ProtoV5ProviderFactories: framework.ProtoV5ProviderFactoriesInit(context.Background(), "azurerm"),
+		Steps: []resource.TestStep{
+			{
+				Config: r.writeOnlyPassword(data, "P@ssword-123!", 1),
+				Check: resource.ComposeTestCheckFunc(
+					check.That(data.ResourceName).ExistsInAzure(r),
+					resource.TestCheckNoResourceAttr(data.ResourceName, "administrator_password_wo"),
+					resource.TestCheckResourceAttr(data.ResourceName, "administrator_password", ""),
+					resource.TestCheckResourceAttr(data.ResourceName, "administrator_password_wo_version", "1"),
+				),
+			},
+			data.ImportStep("administrator_password_wo_version"),
+			{
+				Config: r.writeOnlyPassword(data, "P@ssword-456!", 2),
+				Check: resource.ComposeTestCheckFunc(
+					check.That(data.ResourceName).ExistsInAzure(r),
+					resource.TestCheckNoResourceAttr(data.ResourceName, "administrator_password_wo"),
+					resource.TestCheckResourceAttr(data.ResourceName, "administrator_password_wo_version", "2"),
+				),
+			},
+			data.ImportStep("administrator_password_wo_version"),
+		},
+	})
+}
+
+func TestAccHorizondbCluster_updateToWriteOnlyPassword(t *testing.T) {
+	data := acceptance.BuildTestData(t, "azurerm_horizondb_cluster", "test")
+	r := HorizondbClusterResource{}
+	resource.ParallelTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		ProtoV5ProviderFactories: framework.ProtoV5ProviderFactoriesInit(context.Background(), "azurerm"),
+		Steps: []resource.TestStep{
+			{
+				Config: r.basic(data),
+				Check:  check.That(data.ResourceName).ExistsInAzure(r),
+			},
+			data.ImportStep("administrator_password"),
+			{
+				Config: r.writeOnlyPassword(data, "P@ssword-456!", 1),
+				Check: resource.ComposeTestCheckFunc(
+					check.That(data.ResourceName).ExistsInAzure(r),
+					resource.TestCheckNoResourceAttr(data.ResourceName, "administrator_password_wo"),
+					resource.TestCheckResourceAttr(data.ResourceName, "administrator_password", ""),
+					resource.TestCheckResourceAttr(data.ResourceName, "administrator_password_wo_version", "1"),
+				),
+			},
+			data.ImportStep("administrator_password_wo_version"),
+			{
+				Config: r.basic(data),
+				Check:  check.That(data.ResourceName).ExistsInAzure(r),
+			},
+			data.ImportStep("administrator_password"),
+		},
 	})
 }
 
@@ -294,6 +365,7 @@ func TestHorizondbClusterConfigFormatting(t *testing.T) {
 		"resetSettings":      r.resetSettings(data),
 		"settings":           r.settings(data, 7, false),
 		"password":           r.withAdministratorPassword(data, "P@ssword-123!"),
+		"writeOnlyPassword":  r.writeOnlyPassword(data, "P@ssword-123!", 1),
 		"requiresImport":     r.requiresImport(data),
 		"geoRedundantBackup": r.geoRedundantBackup(data),
 		"restore":            r.restore(data),
@@ -309,6 +381,79 @@ func TestHorizondbClusterConfigFormatting(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if formatted := string(hclwrite.Format([]byte(configuration))); formatted != configuration {
 				t.Errorf("configuration is not formatted:\ngot:  %q\nwant: %q", configuration, formatted)
+			}
+		})
+	}
+}
+
+func TestHorizondbClusterPasswordSchema(t *testing.T) {
+	if err := sdk.WrappedResource(horizondb.HorizondbClusterResource{}).InternalValidate(nil, true); err != nil {
+		t.Fatalf("invalid resource schema: %+v", err)
+	}
+	arguments := (horizondb.HorizondbClusterResource{}).Arguments()
+	r := pluginsdk.Resource{Schema: map[string]*pluginsdk.Schema{
+		"administrator_password":            arguments["administrator_password"],
+		"administrator_password_wo":         arguments["administrator_password_wo"],
+		"administrator_password_wo_version": arguments["administrator_password_wo_version"],
+	}}
+	testCases := map[string]struct {
+		config    map[string]interface{}
+		wantError bool
+	}{
+		"regular": {
+			config: map[string]interface{}{"administrator_password": "P@ssword-123!"},
+		},
+		"writeOnly": {
+			config: map[string]interface{}{"administrator_password_wo": "P@ssword-123!", "administrator_password_wo_version": 1},
+		},
+		"neither": {
+			config:    map[string]interface{}{},
+			wantError: true,
+		},
+		"both": {
+			config: map[string]interface{}{
+				"administrator_password":            "P@ssword-123!",
+				"administrator_password_wo":         "P@ssword-456!",
+				"administrator_password_wo_version": 1,
+			},
+			wantError: true,
+		},
+		"missingVersion": {
+			config:    map[string]interface{}{"administrator_password_wo": "P@ssword-123!"},
+			wantError: true,
+		},
+		"missingWriteOnlyPassword": {
+			config:    map[string]interface{}{"administrator_password": "P@ssword-123!", "administrator_password_wo_version": 1},
+			wantError: true,
+		},
+		"zeroVersion": {
+			config:    map[string]interface{}{"administrator_password_wo": "P@ssword-123!", "administrator_password_wo_version": 0},
+			wantError: true,
+		},
+		"negativeVersion": {
+			config:    map[string]interface{}{"administrator_password_wo": "P@ssword-123!", "administrator_password_wo_version": -1},
+			wantError: true,
+		},
+		"shortWriteOnlyPassword": {
+			config:    map[string]interface{}{"administrator_password_wo": "short", "administrator_password_wo_version": 1},
+			wantError: true,
+		},
+		"longWriteOnlyPassword": {
+			config:    map[string]interface{}{"administrator_password_wo": strings.Repeat("a", 129), "administrator_password_wo_version": 1},
+			wantError: true,
+		},
+		"minimumLength": {
+			config: map[string]interface{}{"administrator_password_wo": strings.Repeat("a", 8), "administrator_password_wo_version": 1},
+		},
+		"maximumLength": {
+			config: map[string]interface{}{"administrator_password_wo": strings.Repeat("a", 128), "administrator_password_wo_version": 1},
+		},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			diags := r.Validate(terraform.NewResourceConfigRaw(testCase.config))
+			if diags.HasError() != testCase.wantError {
+				t.Fatalf("expected validation error: %t, got: %+v", testCase.wantError, diags)
 			}
 		})
 	}
@@ -421,6 +566,26 @@ resource "azurerm_horizondb_cluster" "test" {
 
 func (r HorizondbClusterResource) withPool(data acceptance.TestData, name string, nodes int, mode string, cores int) string {
 	return r.withPoolAndFeatures(data, name, nodes, mode, cores, "")
+}
+
+func (r HorizondbClusterResource) writeOnlyPassword(data acceptance.TestData, secret string, version int) string {
+	return fmt.Sprintf(`
+%s
+
+%s
+
+resource "azurerm_horizondb_cluster" "test" {
+  name                              = "acctest-horizondb-%d"
+  resource_group_name               = azurerm_resource_group.test.name
+  location                          = azurerm_resource_group.test.location
+  postgresql_version                = "18"
+  administrator_login               = "acctestadmin"
+  administrator_password_wo         = ephemeral.azurerm_key_vault_secret.test.value
+  administrator_password_wo_version = %d
+
+  %s
+}
+`, r.template(data), string(hclwrite.Format([]byte(acceptance.WriteOnlyKeyVaultSecretTemplate(data, secret)))), data.RandomInteger, version, r.pool())
 }
 
 func (r HorizondbClusterResource) withPoolAndFeatures(data acceptance.TestData, name string, nodes int, mode string, cores int, features string) string {
