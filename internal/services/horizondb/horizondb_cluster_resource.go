@@ -323,17 +323,12 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 			if err := validateHorizondbClusterPoolRename(oldName.(string), newName.(string)); err != nil {
 				return err
 			}
-			retention, err := configuredHorizondbBackupRetention(metadata.ResourceData.GetRawConfig(), state.BackupRetentionDays)
-			if err != nil {
-				return err
-			}
-			if metadata.ResourceData.HasChange("identity") {
-				if err := updateHorizondbClusterIdentity(ctx, metadata.Client.HorizonDB.ClustersClient, *id, state); err != nil {
-					return fmt.Errorf("updating identity for %s: %+v", id, err)
+			if metadata.ResourceData.HasChanges("identity", "tags", "backup_retention_days", "public_network_access_enabled") {
+				payload, err := expandHorizondbClusterUpdate(state)
+				if err != nil {
+					return err
 				}
-			}
-			for _, payload := range expandHorizondbClusterUpdates(state, metadata.ResourceData.HasChange, retention) {
-				if err := metadata.Client.HorizonDB.ClustersClient.UpdateThenPoll(ctx, *id, payload); err != nil {
+				if err := metadata.Client.HorizonDB.ClustersClient.CreateOrReplaceThenPoll(ctx, *id, payload); err != nil {
 					return fmt.Errorf("updating %s: %+v", id, err)
 				}
 			}
@@ -366,18 +361,6 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 			return nil
 		},
 	}
-}
-
-func updateHorizondbClusterIdentity(ctx context.Context, clustersClient *clusters.ClustersClient, id clusters.ClusterId, state HorizondbClusterResourceModel) error {
-	expanded, err := identity.ExpandUserAssignedMapFromModel(state.Identity)
-	if err != nil {
-		return fmt.Errorf("expanding `identity`: %+v", err)
-	}
-	payload := clusters.Cluster{
-		Location: location.Normalize(state.Location),
-		Identity: expanded,
-	}
-	return clustersClient.CreateOrReplaceThenPoll(ctx, id, payload)
 }
 
 func (HorizondbClusterResource) Delete() sdk.ResourceFunc {
@@ -495,21 +478,28 @@ func expandHorizondbCluster(state HorizondbClusterResourceModel, retention *int6
 	return payload, nil
 }
 
-func expandHorizondbClusterUpdates(state HorizondbClusterResourceModel, hasChange func(string) bool, retention *int64) []clusters.ClusterForPatchUpdate {
-	payload := clusters.ClusterForPatchUpdate{Properties: &clusters.ClusterPropertiesForPatchUpdate{}}
-	if hasChange("tags") {
-		payload.Tags = pointer.To(state.Tags)
+func expandHorizondbClusterUpdate(state HorizondbClusterResourceModel) (clusters.Cluster, error) {
+	expandedIdentity, err := identity.ExpandUserAssignedMapFromModel(state.Identity)
+	if err != nil {
+		return clusters.Cluster{}, fmt.Errorf("expanding `identity`: %+v", err)
 	}
-	if retention != nil && hasChange("backup_retention_days") {
-		payload.Properties.Backup = &clusters.BackupPropertiesForPatchUpdate{RetentionDays: retention}
+	geoRedundancy := clusters.GeoRedundancyStateDisabled
+	if state.GeoRedundantBackupEnabled {
+		geoRedundancy = clusters.GeoRedundancyStateEnabled
 	}
-	if hasChange("public_network_access_enabled") {
-		payload.Properties.Network = &clusters.NetworkForPatchUpdate{PublicAccess: pointer.To(horizondbPublicNetworkAccess(state.PublicNetworkAccessEnabled))}
-	}
-	if payload.Tags != nil || payload.Properties.Backup != nil || payload.Properties.Network != nil {
-		return []clusters.ClusterForPatchUpdate{payload}
-	}
-	return nil
+	return clusters.Cluster{
+		Location: location.Normalize(state.Location),
+		Identity: expandedIdentity,
+		Tags:     pointer.To(state.Tags),
+		Properties: &clusters.ClusterProperties{
+			PostgreSqlVersion: pointer.ToEnum[clusters.PostgreSqlVersion](state.PostgresqlVersion),
+			Network:           &clusters.Network{PublicAccess: pointer.To(horizondbPublicNetworkAccess(state.PublicNetworkAccessEnabled))},
+			Backup: &clusters.BackupProperties{
+				GeoRedundancy: geoRedundancy,
+				RetentionDays: pointer.To(state.BackupRetentionDays),
+			},
+		},
+	}, nil
 }
 
 func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clusters.ClusterId, model *clusters.Cluster, pool *pools.Pool, administratorLogin string) error {
