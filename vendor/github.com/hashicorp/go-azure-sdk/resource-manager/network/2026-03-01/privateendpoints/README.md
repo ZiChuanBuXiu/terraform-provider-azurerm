@@ -1,7 +1,7 @@
 
-## `github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-01-01/privateendpoints` Documentation
+## `github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-03-01/privateendpoints` Documentation
 
-The `privateendpoints` SDK allows for interaction with Azure Resource Manager `network` (API Version `2026-01-01`).
+The `privateendpoints` SDK allows for interaction with Azure Resource Manager `network` (API Version `2026-03-01`).
 
 This readme covers example usages, but further information on [using this SDK can be found in the project root](https://github.com/hashicorp/go-azure-sdk/tree/main/docs).
 
@@ -9,7 +9,7 @@ This readme covers example usages, but further information on [using this SDK ca
 
 ```go
 import "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
-import "github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-01-01/privateendpoints"
+import "github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-03-01/privateendpoints"
 ```
 
 
