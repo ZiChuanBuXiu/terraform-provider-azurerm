@@ -70,7 +70,7 @@ func (HorizondbClusterListResource) List(ctx context.Context, request list.ListR
 			var pool *pools.Pool
 			var administratorLogin string
 			if request.IncludeResource {
-				pool, err = readHorizondbClusterPool(ctx, resourceMetadata, *id)
+				pool, err = readHorizondbClusterPool(ctx, resourceMetadata, *id, &item)
 				if err != nil {
 					sdk.SetErrorDiagnosticAndPushListResult(result, push, "retrieving HorizonDB Cluster Pool", err)
 					return

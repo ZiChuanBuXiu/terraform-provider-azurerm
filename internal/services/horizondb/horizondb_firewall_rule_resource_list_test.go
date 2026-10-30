@@ -40,7 +40,7 @@ func TestAccHorizondbFirewallRule_listByPoolID(t *testing.T) {
 resource "azurerm_horizondb_firewall_rule" "test" {
   count             = 3
   name              = "acctest-rule-%d-${count.index}"
-  horizondb_pool_id  = azurerm_horizondb_cluster.test.pool[0].id
+  horizondb_pool_id  = azurerm_horizondb_cluster.test.read_write_pool[0].id
   start_ip_address  = "192.0.2.${count.index}"
   end_ip_address    = "192.0.2.${count.index}"
 }
@@ -51,7 +51,7 @@ resource "azurerm_horizondb_firewall_rule" "test" {
 list "azurerm_horizondb_firewall_rule" "list" {
   provider = azurerm
   config {
-    horizondb_pool_id = azurerm_horizondb_cluster.test.pool[0].id
+    horizondb_pool_id = azurerm_horizondb_cluster.test.read_write_pool[0].id
   }
 }
 `,

@@ -10,7 +10,7 @@ description: |-
 
 Manages a HorizonDB Cluster.
 
--> **Note:** The required `pool` block provisions compute after the Cluster is created. This resource supports exactly one Pool per Cluster.
+-> **Note:** The required `read_write_pool` block provisions compute after the Cluster is created. This resource manages the Cluster's designated read/write Pool, not other Pools under the Cluster.
 
 ## Example Usage
 
@@ -29,7 +29,7 @@ resource "azurerm_horizondb_cluster" "example" {
   administrator_login    = "exampleadmin"
   administrator_password = var.horizondb_administrator_password
 
-  pool {
+  read_write_pool {
     name                   = "example-pool"
     node_count             = 1
     high_availability_mode = "Disabled"
@@ -62,9 +62,9 @@ The following arguments are supported:
 
 * `administrator_login` - (Required) The PostgreSQL administrator login name, which must be between 1 and 63 characters in length. Changing this forces a new resource to be created.
 
-* `pool` - (Required) A `pool` block as defined below.
+* `read_write_pool` - (Required) A `read_write_pool` block as defined below.
 
-~> **Note:** This resource owns the Cluster's singleton Pool. Refresh and import discover an existing Pool, even if it was created outside Terraform. The block cannot be omitted or removed from configuration. Do not manage the same Pool's compute configuration through another resource or deployment.
+~> **Note:** Refresh and import resolve the read/write Pool using the Cluster's `readWritePool.designatedPoolResourceId`, even if the Pool was created outside Terraform. They fail if the designation is missing or the designated Pool cannot be retrieved. The block cannot be omitted or removed from configuration. Do not manage the same Pool's compute configuration through another resource or deployment.
 
 -> **Note:** New Pools use the default parameter group for the Cluster's region and PostgreSQL version with `Immediate` application. Compute updates preserve the Pool's parameter-group association, and this resource does not automatically restart Pools.
 
@@ -84,7 +84,7 @@ The following arguments are supported:
 
 * `create_mode` - (Optional) The creation mode of the HorizonDB Cluster. Possible values are `Create` and `PointInTimeRestore`. Defaults to `Create`. Changing this forces a new resource to be created.
 
-* `geo_redundant_backup_enabled` - (Optional) Is geo-redundant backup enabled? Defaults to `false`. Changing this forces a new resource to be created.
+* `geo_redundant_backup_enabled` - (Optional) Whether `geo redundant backup` is enabled. Defaults to `false`. Changing this forces a new resource to be created.
 
 * `identity` - (Optional) An `identity` block as defined below.
 
@@ -92,7 +92,7 @@ The following arguments are supported:
 
 ~> **Note:** `postgresql_version` is required when `create_mode` is `Create` and must be omitted when `create_mode` is `PointInTimeRestore`. For restored Clusters, the version is obtained from the source backup and exported by this resource.
 
-* `public_network_access_enabled` - (Optional) Is public network access enabled? Defaults to `false`.
+* `public_network_access_enabled` - (Optional) Whether `public network access` is enabled. Defaults to `false`.
 
 * `restore` - (Optional) A `restore` block as defined below. Changing this forces a new resource to be created.
 
@@ -130,7 +130,7 @@ An `identity` block supports the following:
 
 ---
 
-A `pool` block supports the following:
+A `read_write_pool` block supports the following:
 
 * `compute` - (Required) A `compute` block as defined above.
 
@@ -160,7 +160,7 @@ A `restore` block supports the following:
 
 ~> **Note:** This is required for cross-region restores and optional for same-region restores. Cross-region restores require an eligible geo-replicated backup from the source Cluster.
 
--> **Note:** Restoring a Cluster does not clone the source Pool or its child resources. A new Pool is created from the required `pool` block after restoration using the restored PostgreSQL version to select its default parameter group.
+-> **Note:** Restoring a Cluster does not clone the source Pool or its child resources. A new Pool is created from the required `read_write_pool` block after restoration using the restored PostgreSQL version to select its default parameter group.
 
 ## Attributes Reference
 
@@ -168,11 +168,11 @@ In addition to the Arguments listed above - the following Attributes are exporte
 
 * `id` - The ID of the HorizonDB Cluster.
 
-* `pool` - A `pool` block as defined below.
+* `read_write_pool` - A `read_write_pool` block as defined below.
 
 ---
 
-A `pool` block exports the following:
+A `read_write_pool` block exports the following:
 
 * `id` - The ID of the HorizonDB Pool.
 

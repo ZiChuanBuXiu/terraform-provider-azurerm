@@ -93,7 +93,7 @@ func TestAccHorizondbFirewallRule_overwriteExisting(t *testing.T) {
 
 func (HorizondbFirewallRuleResource) prepareOverwrite(data acceptance.TestData) acceptance.ClientCheckFunc {
 	return func(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) error {
-		poolId, err := firewallrules.ParsePoolID(state.Attributes["pool.0.id"])
+		poolId, err := firewallrules.ParsePoolID(state.Attributes["read_write_pool.0.id"])
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func (HorizondbFirewallRuleResource) config(data acceptance.TestData, start, end
 
 resource "azurerm_horizondb_firewall_rule" "test" {
   name              = "acctest-rule-%d"
-  horizondb_pool_id = azurerm_horizondb_cluster.test.pool[0].id
+  horizondb_pool_id = azurerm_horizondb_cluster.test.read_write_pool[0].id
   start_ip_address  = %q
   end_ip_address    = %q
   %s
@@ -176,7 +176,7 @@ func (r HorizondbFirewallRuleResource) overwriteExisting(data acceptance.TestDat
 
 resource "azurerm_horizondb_firewall_rule" "test" {
   name              = "acctest-rule-%d"
-  horizondb_pool_id = azurerm_horizondb_cluster.test.pool[0].id
+  horizondb_pool_id = azurerm_horizondb_cluster.test.read_write_pool[0].id
   start_ip_address  = "192.0.2.10"
   end_ip_address    = "192.0.2.20"
   description       = "Acceptance test firewall rule"

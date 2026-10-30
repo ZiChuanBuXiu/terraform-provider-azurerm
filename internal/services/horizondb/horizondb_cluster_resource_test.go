@@ -319,7 +319,7 @@ func TestAccHorizondbCluster_poolRenameRejected(t *testing.T) {
 		{Config: r.basic(data), Check: check.That(data.ResourceName).ExistsInAzure(r)},
 		{
 			Config:      r.withPool(data, "renamed", 1, "Disabled", 4),
-			ExpectError: regexp.MustCompile("changing `pool.name` in place is not supported"),
+			ExpectError: regexp.MustCompile("changing `read_write_pool.name` in place is not supported"),
 		},
 	})
 }
@@ -338,7 +338,7 @@ func TestAccHorizondbCluster_poolInvalidHighAvailability(t *testing.T) {
 			r := HorizondbClusterResource{}
 			data.ResourceTest(t, r, []acceptance.TestStep{{
 				Config:      r.withPool(data, "primary", testCase.nodes, testCase.mode, 4),
-				ExpectError: regexp.MustCompile("`pool.high_availability_mode` must be `Disabled`"),
+				ExpectError: regexp.MustCompile("`read_write_pool.high_availability_mode` must be `Disabled`"),
 			}})
 		})
 	}
@@ -349,7 +349,7 @@ func TestAccHorizondbCluster_poolNameCollision(t *testing.T) {
 	r := HorizondbClusterResource{}
 	data.ResourceTest(t, r, []acceptance.TestStep{{
 		Config:      r.withPool(data, fmt.Sprintf("acctest-horizondb-%d", data.RandomInteger), 1, "Disabled", 4),
-		ExpectError: regexp.MustCompile("`pool.name` must differ"),
+		ExpectError: regexp.MustCompile("`read_write_pool.name` must differ"),
 	}})
 }
 
@@ -498,7 +498,7 @@ func (r HorizondbClusterResource) basic(data acceptance.TestData) string {
 
 func (HorizondbClusterResource) pool() string {
 	lines := strings.Split(strings.TrimSpace(`
-pool {
+read_write_pool {
   name                   = "primary"
   node_count             = 1
   high_availability_mode = "Disabled"
@@ -599,7 +599,7 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_login    = "acctestadmin"
   administrator_password = "P@ssword-123!"
 
-  pool {
+  read_write_pool {
     name                   = %q
     node_count             = %d
     high_availability_mode = %q
@@ -629,7 +629,7 @@ resource "azurerm_horizondb_cluster" "test" {
   backup_retention_days         = 14
   public_network_access_enabled = true
 
-  pool {
+  read_write_pool {
     name                   = "primary"
     node_count             = 1
     high_availability_mode = "Disabled"

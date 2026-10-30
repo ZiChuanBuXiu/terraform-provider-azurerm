@@ -33,7 +33,7 @@ type HorizondbClusterResourceModel struct {
 	ResourceGroupName              string                       `tfschema:"resource_group_name"`
 	Location                       string                       `tfschema:"location"`
 	PostgresqlVersion              string                       `tfschema:"postgresql_version"`
-	Pool                           []HorizondbClusterPool       `tfschema:"pool"`
+	ReadWritePool                  []HorizondbClusterPool       `tfschema:"read_write_pool"`
 	AdministratorLogin             string                       `tfschema:"administrator_login"`
 	AdministratorPassword          string                       `tfschema:"administrator_password"`
 	AdministratorPasswordWOVersion int64                        `tfschema:"administrator_password_wo_version"`
@@ -93,6 +93,7 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			ForceNew:     true,
 			ValidateFunc: validation.StringLenBetween(1, 63),
 		},
+		"read_write_pool": horizondbClusterPoolSchema(),
 		"administrator_password": {
 			Type:          pluginsdk.TypeString,
 			Optional:      true,
@@ -116,7 +117,6 @@ func (HorizondbClusterResource) Arguments() map[string]*pluginsdk.Schema {
 			RequiredWith: []string{"administrator_password_wo"},
 			ValidateFunc: validation.IntAtLeast(1),
 		},
-		"pool": horizondbClusterPoolSchema(),
 		"backup_retention_days": {
 			Type:         pluginsdk.TypeInt,
 			Optional:     true,
@@ -191,8 +191,8 @@ func (HorizondbClusterResource) CustomizeDiff() sdk.ResourceFunc {
 			if err := validateHorizondbClusterPoolConfig(diff.GetRawConfig()); err != nil {
 				return err
 			}
-			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "administrator_login", "create_mode", "postgresql_version", "restore", "geo_redundant_backup_enabled") && diff.NewValueKnown("pool.0.name") {
-				old, new := diff.GetChange("pool.0.name")
+			if diff.Id() != "" && !diff.HasChanges("name", "resource_group_name", "location", "administrator_login", "create_mode", "postgresql_version", "restore", "geo_redundant_backup_enabled") && diff.NewValueKnown("read_write_pool.0.name") {
+				old, new := diff.GetChange("read_write_pool.0.name")
 				if err := validateHorizondbClusterPoolRename(old.(string), new.(string)); err != nil {
 					return err
 				}
@@ -269,10 +269,8 @@ func (r HorizondbClusterResource) Create() sdk.ResourceFunc {
 			if err := pluginsdk.SetResourceIdentityData(metadata.ResourceData, &id); err != nil {
 				return err
 			}
-			if len(state.Pool) > 0 || metadata.Client.Features.SkipImportCheckOnCreateAndAllowOverwritingExistingResources {
-				if err := reconcileHorizondbClusterPool(ctx, metadata, id, state.Pool); err != nil {
-					return err
-				}
+			if err := createOrReplaceHorizondbClusterPool(ctx, metadata, id, state.ReadWritePool[0]); err != nil {
+				return err
 			}
 			return reconcileHorizondbClusterPasswordAuthentication(ctx, metadata, id, state)
 		},
@@ -294,7 +292,7 @@ func (r HorizondbClusterResource) Read() sdk.ResourceFunc {
 				}
 				return fmt.Errorf("retrieving %s: %+v", id, err)
 			}
-			pool, err := readHorizondbClusterPool(ctx, metadata, *id)
+			pool, err := readHorizondbClusterPool(ctx, metadata, *id, resp.Model)
 			if err != nil {
 				return err
 			}
@@ -319,7 +317,7 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 			if err := metadata.Decode(&state); err != nil {
 				return fmt.Errorf("decoding: %+v", err)
 			}
-			oldName, newName := metadata.ResourceData.GetChange("pool.0.name")
+			oldName, newName := metadata.ResourceData.GetChange("read_write_pool.0.name")
 			if err := validateHorizondbClusterPoolRename(oldName.(string), newName.(string)); err != nil {
 				return err
 			}
@@ -332,8 +330,8 @@ func (HorizondbClusterResource) Update() sdk.ResourceFunc {
 					return fmt.Errorf("updating %s: %+v", id, err)
 				}
 			}
-			if metadata.ResourceData.HasChange("pool") {
-				if err := reconcileHorizondbClusterPool(ctx, metadata, *id, state.Pool); err != nil {
+			if metadata.ResourceData.HasChange("read_write_pool") {
+				if err := createOrReplaceHorizondbClusterPool(ctx, metadata, *id, state.ReadWritePool[0]); err != nil {
 					return err
 				}
 			}
@@ -567,7 +565,7 @@ func (HorizondbClusterResource) flatten(metadata sdk.ResourceMetaData, id *clust
 			state.Restore = []HorizondbClusterRestore{restore}
 		}
 	}
-	state.Pool, err = flattenHorizondbClusterPool(*id, pool)
+	state.ReadWritePool, err = flattenHorizondbClusterPool(*id, pool)
 	if err != nil {
 		return err
 	}

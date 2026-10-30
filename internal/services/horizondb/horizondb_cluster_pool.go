@@ -98,7 +98,7 @@ func validateHorizondbClusterPoolConfig(config cty.Value) error {
 	if !config.IsKnown() || config.IsNull() {
 		return nil
 	}
-	block := config.GetAttr("pool")
+	block := config.GetAttr("read_write_pool")
 	if !block.IsKnown() || block.IsNull() || block.LengthInt() == 0 {
 		return nil
 	}
@@ -108,13 +108,13 @@ func validateHorizondbClusterPoolConfig(config cty.Value) error {
 	}
 	name, clusterName := pool.GetAttr("name"), config.GetAttr("name")
 	if name.IsKnown() && !name.IsNull() && clusterName.IsKnown() && !clusterName.IsNull() && strings.EqualFold(name.AsString(), clusterName.AsString()) {
-		return errors.New("`pool.name` must differ from the cluster `name`")
+		return errors.New("`read_write_pool.name` must differ from the cluster `name`")
 	}
 	count, mode := pool.GetAttr("node_count"), pool.GetAttr("high_availability_mode")
 	if count.IsKnown() && !count.IsNull() && mode.IsKnown() && !mode.IsNull() {
 		nodes, _ := count.AsBigFloat().Int64()
 		if (nodes == 1) != (mode.AsString() == string(pools.PoolHighAvailabilityModeDisabled)) {
-			return errors.New("`pool.high_availability_mode` must be `Disabled` for one node, and `AnyZone` or `ZoneRedundant` for two or more nodes")
+			return errors.New("`read_write_pool.high_availability_mode` must be `Disabled` for one node, and `AnyZone` or `ZoneRedundant` for two or more nodes")
 		}
 	}
 	return nil
@@ -122,26 +122,44 @@ func validateHorizondbClusterPoolConfig(config cty.Value) error {
 
 func validateHorizondbClusterPoolRename(old, new string) error {
 	if old != "" && new != "" && old != new {
-		return errors.New("changing `pool.name` in place is not supported; replace the cluster to use a different pool name")
+		return errors.New("changing `read_write_pool.name` in place is not supported; replace the cluster to use a different pool name")
 	}
 	return nil
 }
 
-func readHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId) (*pools.Pool, error) {
-	result, err := metadata.Client.HorizonDB.PoolsClient.ListComplete(ctx, pools.NewClusterID(id.SubscriptionId, id.ResourceGroupName, id.ClusterName))
+func readHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMetaData, id clusters.ClusterId, cluster *clusters.Cluster) (*pools.Pool, error) {
+	if cluster == nil || cluster.Properties == nil {
+		return nil, fmt.Errorf("retrieving %s: cluster properties are missing", id)
+	}
+	designatedId := pointer.From(cluster.Properties.ReadWritePool.DesignatedPoolResourceId)
+	if designatedId == "" {
+		return nil, fmt.Errorf("retrieving %s: `readWritePool.designatedPoolResourceId` is missing", id)
+	}
+	poolId, err := pools.ParsePoolIDInsensitively(designatedId)
 	if err != nil {
-		return nil, fmt.Errorf("listing pools for %s: %+v", id, err)
-	}
-	if len(result.Items) > 1 {
-		return nil, fmt.Errorf("retrieving %s: expected at most one pool, got %d", id, len(result.Items))
-	}
-	if len(result.Items) == 0 {
-		return nil, nil
-	}
-	if _, err := flattenHorizondbClusterPool(id, &result.Items[0]); err != nil {
 		return nil, err
 	}
-	return &result.Items[0], nil
+	if !strings.EqualFold(poolId.SubscriptionId, id.SubscriptionId) || !strings.EqualFold(poolId.ResourceGroupName, id.ResourceGroupName) || !strings.EqualFold(poolId.ClusterName, id.ClusterName) {
+		return nil, fmt.Errorf("designated read/write pool %s does not belong to %s", poolId, id)
+	}
+	result, err := metadata.Client.HorizonDB.PoolsClient.Get(ctx, *poolId)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving designated read/write pool %s: %+v", poolId, err)
+	}
+	if result.Model == nil {
+		return nil, fmt.Errorf("retrieving %s: pool model is missing", poolId)
+	}
+	returnedId, err := pools.ParsePoolIDInsensitively(pointer.From(result.Model.Id))
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(returnedId.ID(), poolId.ID()) {
+		return nil, fmt.Errorf("retrieving %s: response pool ID does not match the designated read/write pool", poolId)
+	}
+	if _, err := flattenHorizondbClusterPool(id, result.Model); err != nil {
+		return nil, err
+	}
+	return result.Model, nil
 }
 
 func flattenHorizondbClusterPool(clusterId clusters.ClusterId, model *pools.Pool) ([]HorizondbClusterPool, error) {
@@ -179,71 +197,41 @@ func flattenHorizondbClusterPool(clusterId clusters.ClusterId, model *pools.Pool
 	}}, nil
 }
 
-func reconcileHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMetaData, clusterId clusters.ClusterId, desired []HorizondbClusterPool) error {
-	oldName, _ := metadata.ResourceData.GetChange("pool.0.name")
-	name := oldName.(string)
-	if len(desired) > 0 {
-		name = desired[0].Name
-	}
-	if name == "" {
-		existing, err := readHorizondbClusterPool(ctx, metadata, clusterId)
-		if err != nil {
-			return err
-		}
-		if existing == nil {
-			return nil
-		}
-		id, err := pools.ParsePoolIDInsensitively(pointer.From(existing.Id))
-		if err != nil {
-			return err
-		}
-		name = id.PoolName
-	}
-	id := pools.NewPoolID(clusterId.SubscriptionId, clusterId.ResourceGroupName, clusterId.ClusterName, name)
+func createOrReplaceHorizondbClusterPool(ctx context.Context, metadata sdk.ResourceMetaData, clusterId clusters.ClusterId, state HorizondbClusterPool) error {
+	id := pools.NewPoolID(clusterId.SubscriptionId, clusterId.ResourceGroupName, clusterId.ClusterName, state.Name)
 	lockId := strings.ToLower(id.ID())
 	locks.ByID(lockId)
 	defer locks.UnlockByID(lockId)
 
-	existing, err := readHorizondbClusterPool(ctx, metadata, clusterId)
+	result, err := metadata.Client.HorizonDB.ClustersClient.Get(ctx, clusterId)
 	if err != nil {
-		return err
+		return fmt.Errorf("retrieving %s: %+v", clusterId, err)
 	}
-	if existing != nil {
+	if result.Model == nil || result.Model.Properties == nil {
+		return fmt.Errorf("retrieving %s: cluster properties are missing", clusterId)
+	}
+	if pointer.From(result.Model.Properties.ReadWritePool.DesignatedPoolResourceId) != "" || !metadata.ResourceData.IsNewResource() {
+		existing, err := readHorizondbClusterPool(ctx, metadata, clusterId, result.Model)
+		if err != nil {
+			return err
+		}
 		existingId, err := pools.ParsePoolIDInsensitively(pointer.From(existing.Id))
 		if err != nil {
 			return err
 		}
 		if !strings.EqualFold(existingId.ID(), id.ID()) {
-			return fmt.Errorf("reconciling %s: remote pool changed; refresh state before retrying", clusterId)
+			return fmt.Errorf("creating or replacing %s: remote pool changed; refresh state before retrying", id)
 		}
 	}
-	client := metadata.Client.HorizonDB.PoolsClient
-	if len(desired) == 0 {
-		if existing == nil {
-			return nil
-		}
-		if err := client.DeleteThenPoll(ctx, id); err != nil {
-			return fmt.Errorf("deleting %s: %+v", id, err)
-		}
-		return nil
+	payload := pools.Pool{
+		Properties: &pools.PoolProperties{
+			ComputeModel: expandHorizondbClusterPoolCompute(state.Compute[0]),
+			NodeCount:    state.NodeCount, HighAvailability: pools.PoolHighAvailability{Mode: pools.PoolHighAvailabilityMode(state.HighAvailabilityMode)},
+			ScheduledMaintenance: pools.SystemScheduledMaintenanceProperties{},
+		},
 	}
-	state := desired[0]
-	if existing == nil {
-		payload := pools.Pool{
-			Properties: &pools.PoolProperties{
-				ComputeModel: expandHorizondbClusterPoolCompute(state.Compute[0]),
-				NodeCount:    state.NodeCount, HighAvailability: pools.PoolHighAvailability{Mode: pools.PoolHighAvailabilityMode(state.HighAvailabilityMode)},
-				ScheduledMaintenance: pools.SystemScheduledMaintenanceProperties{},
-			},
-		}
-		if err := client.CreateOrReplaceThenPoll(ctx, id, payload); err != nil {
-			return fmt.Errorf("creating %s: %+v", id, err)
-		}
-		return nil
-	}
-	payload := expandHorizondbClusterPoolUpdate(state)
-	if err := client.UpdateThenPoll(ctx, id, payload); err != nil {
-		return fmt.Errorf("updating %s: %+v", id, err)
+	if err := metadata.Client.HorizonDB.PoolsClient.CreateOrReplaceThenPoll(ctx, id, payload); err != nil {
+		return fmt.Errorf("creating or replacing %s: %+v", id, err)
 	}
 	return nil
 }
@@ -253,22 +241,5 @@ func expandHorizondbClusterPoolCompute(input HorizondbClusterPoolCompute) pools.
 		Type:              pools.PoolComputeModelType(input.Type),
 		ComputeProcessor:  pools.ComputeProcessorType(input.Processor),
 		ComputeGeneration: input.Generation, VCores: input.VCores,
-	}
-}
-
-func expandHorizondbClusterPoolUpdate(state HorizondbClusterPool) pools.PoolForPatchUpdate {
-	compute := expandHorizondbClusterPoolCompute(state.Compute[0])
-	return pools.PoolForPatchUpdate{
-		Properties: &pools.PoolPropertiesForPatchUpdate{
-			ComputeModel: &pools.PoolComputeModelForPatchUpdate{
-				Type: pointer.To(compute.Type), ComputeProcessor: pointer.To(compute.ComputeProcessor),
-				ComputeGeneration: pointer.To(compute.ComputeGeneration), VCores: pointer.To(compute.VCores),
-			},
-			NodeCount:        pointer.To(state.NodeCount),
-			HighAvailability: &pools.PoolHighAvailabilityPatch{Mode: pointer.ToEnum[pools.PoolHighAvailabilityMode](state.HighAvailabilityMode)},
-			ScheduledMaintenance: &pools.ScheduledMaintenancePropertiesForPatchUpdate{
-				MaintenanceManagementType: pointer.To(pools.ScheduledMaintenanceManagementTypeSystem),
-			},
-		},
 	}
 }

@@ -37,9 +37,9 @@ func TestAccHorizondbCluster_list(t *testing.T) {
 			queryfilter.ByResourceIdentity(identity), []querycheck.KnownValueCheck{{
 				Path: tfjsonpath.New("postgresql_version"), KnownValue: knownvalue.StringExact("18"),
 			}, {
-				Path: tfjsonpath.New("pool").AtSliceIndex(0).AtMapKey("name"), KnownValue: knownvalue.StringExact("primary"),
+				Path: tfjsonpath.New("read_write_pool").AtSliceIndex(0).AtMapKey("name"), KnownValue: knownvalue.StringExact("primary"),
 			}, {
-				Path:       tfjsonpath.New("pool").AtSliceIndex(0).AtMapKey("id"),
+				Path:       tfjsonpath.New("read_write_pool").AtSliceIndex(0).AtMapKey("id"),
 				KnownValue: knownvalue.StringExact(fmt.Sprintf("/subscriptions/%s/resourceGroups/acctestRG-horizondb-%d/providers/Microsoft.HorizonDb/clusters/acctest-horizondb-%d-%d/pools/primary", data.Subscriptions.Primary, data.RandomInteger, data.RandomInteger, index)),
 			}}))
 	}
@@ -121,7 +121,7 @@ resource "azurerm_horizondb_cluster" "test" {
   administrator_login    = "acctestadmin"
   administrator_password = "P@ssword-123!"
 
-  pool {
+  read_write_pool {
     name                   = "primary"
     node_count             = 1
     high_availability_mode = "Disabled"
