@@ -303,24 +303,29 @@ func resourcePrivateEndpoint() *pluginsdk.Resource {
 
 			"tags": commonschema.Tags(),
 		},
-		CustomizeDiff: func(ctx context.Context, d *schema.ResourceDiff, meta any) error {
-			privateServiceConnections := d.Get("private_service_connection").([]any)
-			for _, psc := range privateServiceConnections {
-				privateServiceConnection := psc.(map[string]any)
-				name := privateServiceConnection["name"].(string)
+		CustomizeDiff: pluginsdk.CustomDiffWithAll(
+			pluginsdk.ForceNewIfChange("billing_sku", func(ctx context.Context, old, new, meta any) bool {
+				return old.(string) == string(privateendpoints.PrivateEndpointBillingSkuFixed) && new.(string) == string(privateendpoints.PrivateEndpointBillingSkuPayAsYouGo)
+			}),
+			func(ctx context.Context, d *schema.ResourceDiff, meta any) error {
+				privateServiceConnections := d.Get("private_service_connection").([]any)
+				for _, psc := range privateServiceConnections {
+					privateServiceConnection := psc.(map[string]any)
+					name := privateServiceConnection["name"].(string)
 
-				// If this is not a manual connection and the message is set return an error since this does not make sense.
-				if !privateServiceConnection["is_manual_connection"].(bool) && privateServiceConnection["request_message"].(string) != "" {
-					return fmt.Errorf(`"private_service_connection":%q is invalid, the "request_message" attribute cannot be set if the "is_manual_connection" attribute is "false"`, name)
-				}
+					// If this is not a manual connection and the message is set return an error since this does not make sense.
+					if !privateServiceConnection["is_manual_connection"].(bool) && privateServiceConnection["request_message"].(string) != "" {
+						return fmt.Errorf(`"private_service_connection":%q is invalid, the "request_message" attribute cannot be set if the "is_manual_connection" attribute is "false"`, name)
+					}
 
-				// If this is a manual connection and the message isn't set return an error.
-				if privateServiceConnection["is_manual_connection"].(bool) && strings.TrimSpace(privateServiceConnection["request_message"].(string)) == "" {
-					return fmt.Errorf(`"private_service_connection":%q is invalid, the "request_message" attribute must not be empty`, name)
+					// If this is a manual connection and the message isn't set return an error.
+					if privateServiceConnection["is_manual_connection"].(bool) && strings.TrimSpace(privateServiceConnection["request_message"].(string)) == "" {
+						return fmt.Errorf(`"private_service_connection":%q is invalid, the "request_message" attribute must not be empty`, name)
+					}
 				}
-			}
-			return nil
-		},
+				return nil
+			},
+		),
 	}
 }
 

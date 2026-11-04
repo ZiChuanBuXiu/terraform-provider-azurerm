@@ -11,6 +11,8 @@ import (
 
 	"github.com/hashicorp/go-azure-helpers/lang/pointer"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/network/2026-03-01/privateendpoints"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/acceptance/check"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -26,8 +28,8 @@ func TestPrivateEndpointBillingSkuSchema(t *testing.T) {
 	if billingSku == nil {
 		t.Fatal("missing billing_sku schema")
 	}
-	if billingSku.Type != pluginsdk.TypeString || !billingSku.Optional || billingSku.Computed || billingSku.ForceNew || billingSku.Default != nil || billingSku.DefaultFunc != nil {
-		t.Fatal("billing_sku must be an updatable optional string without a default or computed value")
+	if billingSku.Type != pluginsdk.TypeString || !billingSku.Optional || billingSku.Computed || billingSku.ForceNew || billingSku.Default != privateendpoints.PrivateEndpointBillingSkuPayAsYouGo || billingSku.DefaultFunc != nil {
+		t.Fatal("billing_sku must be an optional string defaulting to PayAsYouGo without a computed value or unconditional ForceNew")
 	}
 	if billingSku.ValidateFunc == nil {
 		t.Fatal("billing_sku must validate its enum values")
@@ -123,7 +125,7 @@ func TestAccPrivateEndpoint_billingSku(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_private_endpoint", "test")
 	r := PrivateEndpointResource{}
 
-	data.ResourceTest(t, r, []acceptance.TestStep{
+	data.ResourceTestIgnoreRecreate(t, r, []acceptance.TestStep{
 		{
 			Config: r.withBillingSku(data, "Fixed"),
 			Check: acceptance.ComposeTestCheckFunc(
@@ -134,6 +136,11 @@ func TestAccPrivateEndpoint_billingSku(t *testing.T) {
 		data.ImportStep(),
 		{
 			Config: r.withBillingSku(data, "PayAsYouGo"),
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
+				},
+			},
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("billing_sku").HasValue("PayAsYouGo"),
@@ -142,6 +149,11 @@ func TestAccPrivateEndpoint_billingSku(t *testing.T) {
 		data.ImportStep(),
 		{
 			Config: r.withBillingSku(data, "Fixed"),
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionUpdate),
+				},
+			},
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("billing_sku").HasValue("Fixed"),
@@ -150,9 +162,15 @@ func TestAccPrivateEndpoint_billingSku(t *testing.T) {
 		data.ImportStep(),
 		{
 			Config: r.withTag(data),
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(data.ResourceName, plancheck.ResourceActionReplace),
+				},
+			},
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 				check.That(data.ResourceName).Key("tags.env").HasValue("TEST"),
+				check.That(data.ResourceName).Key("billing_sku").HasValue("PayAsYouGo"),
 			),
 		},
 		data.ImportStep(),

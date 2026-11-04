@@ -203,7 +203,9 @@ The following arguments are supported:
 
 * `subnet_id` - (Required) The ID of the Subnet from which Private IP Addresses will be allocated for this Private Endpoint. Changing this forces a new resource to be created.
 
-* `billing_sku` - (Optional) The billing SKU of the Private Endpoint. Possible values are `Fixed` and `PayAsYouGo`.
+* `billing_sku` - (Optional) The billing SKU of the Private Endpoint. Possible values are `Fixed` and `PayAsYouGo`. Defaults to `PayAsYouGo`.
+
+~> **Note:** Changing `billing_sku` from `Fixed` to `PayAsYouGo` forces a new resource to be created. Changing it from `PayAsYouGo` to `Fixed` updates the Private Endpoint in place.
 
 * `custom_network_interface_name` - (Optional) The custom name of the network interface attached to the private endpoint. Changing this forces a new resource to be created.
 
