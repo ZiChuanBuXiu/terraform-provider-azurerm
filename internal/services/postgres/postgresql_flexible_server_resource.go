@@ -23,7 +23,7 @@ import (
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/keyvault"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/tags"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/servers"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2026-10-01/servers"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/privatedns/2024-06-01/privatezones"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
@@ -206,7 +206,7 @@ func resourcePostgresqlFlexibleServer() *pluginsdk.Resource {
 				Optional: true,
 				// Note: O+C because Azure assigns a version when not explicitly set
 				Computed:     true,
-				ValidateFunc: validation.StringInSlice(servers.PossibleValuesForPostgresMajorVersion(), false),
+				ValidateFunc: validation.StringInSlice(possibleValuesForPostgresMajorVersion(), false),
 			},
 
 			"zone": commonschema.ZoneSingleOptional(),
@@ -521,7 +521,7 @@ func resourcePostgresqlFlexibleServer() *pluginsdk.Resource {
 
 				if diff.Get("storage_type").(string) == string(servers.StorageTypePremiumVTwoLRS) {
 					version := diff.Get("version").(string)
-					if version == string(servers.PostgresMajorVersionOneOne) || version == string(servers.PostgresMajorVersionOneTwo) || version == string(servers.PostgresMajorVersionOneThree) {
+					if version == "11" || version == "12" || version == "13" {
 						return fmt.Errorf("PostgreSQL version `%s` is not supported when `storage_type` is `PremiumV2_LRS`", version)
 					}
 
@@ -779,7 +779,7 @@ func resourcePostgresqlFlexibleServerCreate(d *pluginsdk.ResourceData, meta any)
 	}
 
 	if v, ok := d.GetOk("version"); ok && v.(string) != "" {
-		parameters.Properties.Version = pointer.ToEnum[servers.PostgresMajorVersion](v.(string))
+		parameters.Properties.Version = pointer.To(v.(string))
 	}
 
 	if v, ok := d.GetOk("zone"); ok && v.(string) != "" {
@@ -1177,8 +1177,7 @@ func resourcePostgresqlFlexibleServerUpdate(d *pluginsdk.ResourceData, meta any)
 	}
 
 	if d.HasChange("version") {
-		version := servers.PostgresMajorVersion(d.Get("version").(string))
-		parameters.Properties.Version = &version
+		parameters.Properties.Version = pointer.To(d.Get("version").(string))
 	}
 
 	if requireUpdateOnLogin {
@@ -1659,4 +1658,18 @@ func flattenFlexibleServerCluster(cluster *servers.Cluster) []any {
 	}
 
 	return []any{item}
+}
+
+func possibleValuesForPostgresMajorVersion() []string {
+	return []string{
+		"11",
+		"12",
+		"13",
+		"14",
+		"15",
+		"16",
+		"17",
+		"18",
+		"19",
+	}
 }
